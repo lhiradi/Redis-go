@@ -14,6 +14,10 @@ import (
 var _ = net.Listen
 var _ = os.Exit
 
+type DB struct {
+	data map[string]string
+}
+
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
@@ -40,6 +44,9 @@ func main() {
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
+	db := &DB{
+		make(map[string]string),
+	}
 
 	reader := bufio.NewReader(conn)
 
@@ -125,6 +132,21 @@ func handleConnection(conn net.Conn) {
 					// ECHO without argument - return error or empty bulk string
 					conn.Write([]byte("$0\r\n\r\n"))
 				}
+			case "SET":
+				if len(args) >= 3 {
+					db.data[args[1]] = args[2]
+					conn.Write([]byte("+OK\r\n"))
+				} else {
+					conn.Write([]byte("$0\r\n\r\n"))
+				}
+			case "GET":
+				if len(args) >= 2 {
+					response := fmt.Sprintf("$%d\r\n%s\r\n", len(db.data[args[1]]), db.data[args[1]])
+					conn.Write([]byte(response))
+				} else {
+					conn.Write([]byte("$0\r\n\r\n"))
+				}
+
 			default:
 				// Unknown command
 				errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
