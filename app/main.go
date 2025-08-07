@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"os"
+	"strings"
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
@@ -29,28 +33,103 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			continue
 		}
-		go handleClient(conn)
+		go handleConnection(conn)
 	}
 
 }
 
-func handleClient(conn net.Conn) {
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+
+	reader := bufio.NewReader(conn)
 
 	for {
-		buf := make([]byte, 1024)
-		_, err := conn.Read(buf)
+		// Read the RESP array length (*2\r\n)
+		line, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Println("Error reading from connection")
+			if err == io.EOF {
+				return
+			}
+			log.Print(err)
 			return
 		}
 
-		if string(buf[:]) == "PING" {
-
-			conn.Write([]byte("+PONG\r\n"))
-
-		} else if string(buf[:4]) == "ECHO" {
-			conn.Write([]byte(string(buf[4:])))
+		// Check if it's a valid RESP array
+		if len(line) < 2 || line[0] != '*' {
+			log.Printf("Invalid RESP format: %s", line)
+			return
 		}
 
+		// Parse the number of elements in the array
+		var arrayLength int
+		_, err = fmt.Sscanf(line, "*%d\r\n", &arrayLength)
+		if err != nil {
+			log.Printf("Failed to parse array length: %v", err)
+			return
+		}
+
+		// Read the command and its arguments
+		args := make([]string, arrayLength)
+		for i := 0; i < arrayLength; i++ {
+			// Read the bulk string length ($n\r\n)
+			lengthLine, err := reader.ReadString('\n')
+			if err != nil {
+				log.Print(err)
+				return
+			}
+
+			if len(lengthLine) < 2 || lengthLine[0] != '$' {
+				log.Printf("Invalid bulk string format: %s", lengthLine)
+				return
+			}
+
+			// Parse the bulk string length
+			var strLen int
+			_, err = fmt.Sscanf(lengthLine, "$%d\r\n", &strLen)
+			if err != nil {
+				log.Printf("Failed to parse string length: %v", err)
+				return
+			}
+
+			// Read the actual string content
+			arg := make([]byte, strLen+2) // +2 for \r\n
+			_, err = io.ReadFull(reader, arg)
+			if err != nil {
+				log.Print(err)
+				return
+			}
+
+			// Store the argument (without \r\n)
+			args[i] = string(arg[:strLen])
+		}
+
+		// Process the command
+		if len(args) > 0 {
+			command := strings.ToUpper(args[0])
+			switch command {
+			case "PING":
+				if len(args) == 1 {
+					// PING without arguments returns "PONG"
+					conn.Write([]byte("+PONG\r\n"))
+				} else {
+					// PING with argument returns the argument
+					response := fmt.Sprintf("$%d\r\n%s\r\n", len(args[1]), args[1])
+					conn.Write([]byte(response))
+				}
+			case "ECHO":
+				if len(args) >= 2 {
+					// ECHO returns the second argument as a bulk string
+					response := fmt.Sprintf("$%d\r\n%s\r\n", len(args[1]), args[1])
+					conn.Write([]byte(response))
+				} else {
+					// ECHO without argument - return error or empty bulk string
+					conn.Write([]byte("$0\r\n\r\n"))
+				}
+			default:
+				// Unknown command
+				errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
+				conn.Write([]byte(errorMsg))
+			}
+		}
 	}
 }
