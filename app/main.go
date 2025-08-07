@@ -44,6 +44,13 @@ func handleClient(conn net.Conn) {
 			return
 		}
 
-		conn.Write([]byte("+PONG\r\n"))
+		if string(buf[:]) == "PING" {
+
+			conn.Write([]byte("+PONG\r\n"))
+
+		} else if string(buf[:4]) == "ECHO" {
+			conn.Write([]byte(string(buf[4:])))
+		}
+
 	}
 }
