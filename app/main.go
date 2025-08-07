@@ -36,7 +36,7 @@ func (db *DB) Get(key string) (string, bool) {
 		return "", false
 	}
 
-	if val.ttl > 0 && time.Now().Unix() > val.ttl {
+	if val.ttl > 0 && time.Now().UnixMilli() > val.ttl {
 		// Expired
 		delete(db.data, key)
 		return "", false
@@ -134,7 +134,7 @@ func handleConnection(conn net.Conn, db *DB) {
 				conn.Write([]byte("-ERR wrong number of arguments for 'GET' command\r\n"))
 				continue
 			}
-			
+
 			key := args[1]
 			if val, ok := db.Get(key); ok {
 				response := fmt.Sprintf("$%d\r\n%s\r\n", len(val), val)
