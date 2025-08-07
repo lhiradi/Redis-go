@@ -143,6 +143,18 @@ func handleConnection(conn net.Conn, db *DB) {
 				conn.Write([]byte("$-1\r\n"))
 			}
 
+		case "TYPE":
+			if len(args) < 2 {
+				conn.Write([]byte("-ERR wrong number of arguments for 'GET' command\r\n"))
+				continue
+			}
+			key := args[1]
+			if val, ok := db.Get(key); ok {
+				response := fmt.Sprintf("+%T\r\n", val)
+				conn.Write([]byte(response))
+			} else {
+				conn.Write([]byte("+none\r\n"))
+			}
 		default:
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
