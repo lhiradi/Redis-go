@@ -50,7 +50,7 @@ func (db *DB) Set(key, value string, ttlMilSec int64) {
 
 	var ttl int64
 	if ttlMilSec > 0 {
-		ttl = time.Now().Unix() + ttlMilSec
+		ttl = time.Now().UnixMilli() + ttlMilSec
 	}
 	db.data[key] = cacheValue{value: value, ttl: ttl}
 }
