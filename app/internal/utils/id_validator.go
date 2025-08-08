@@ -12,6 +12,16 @@ func ValidateStreamID(ID, lastID string) (string, error) {
 	}
 
 	if lastID == "" {
+		IDParts := strings.Split(ID, "-")
+		if len(IDParts) == 2 && IDParts[1] == "*" {
+			// A new stream with an auto-generated ID.
+			// The first entry's sequence number should be 1 if the millisecond is 0.
+			if IDParts[0] == "0" {
+				return "0-1", nil
+			}
+			return fmt.Sprintf("%s-0", IDParts[0]), nil
+		}
+		// If it's not a wildcard, return the ID as is.
 		return ID, nil
 	}
 
