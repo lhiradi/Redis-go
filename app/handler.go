@@ -78,12 +78,9 @@ func handleConnection(conn net.Conn, db *DB) {
 				continue
 			}
 			key := args[1]
-			if val, ok := db.Get(key); ok {
-				response := fmt.Sprintf("+%T\r\n", val)
-				conn.Write([]byte(response))
-			} else {
-				conn.Write([]byte("+none\r\n"))
-			}
+			keyType := db.GetType(key)
+			response := fmt.Sprintf("+%s\r\n", keyType)
+			conn.Write([]byte(response))
 		case "XADD":
 			if len(args) < 5 || len(args)%2 != 1 {
 				conn.Write([]byte("-ERR wrong number of arguments for 'XADD' command\r\n"))

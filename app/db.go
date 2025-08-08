@@ -46,6 +46,18 @@ func (db *DB) Get(key string) (string, bool) {
 	return val.value, true
 }
 
+func (db *DB) GetType(key string) string {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	if _, ok := db.data[key]; ok {
+		return "string"
+	}
+	if _, ok := db.streams[key]; ok {
+		return "stream"
+	}
+	return "none"
+}
 func (db *DB) Set(key, value string, ttlMilSec int64) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
