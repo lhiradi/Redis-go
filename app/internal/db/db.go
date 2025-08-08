@@ -2,10 +2,10 @@ package db
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
 type DB struct {
@@ -80,35 +80,14 @@ func (db *DB) XAdd(key, ID string, fields map[string]string) (string, error) {
 		return "", fmt.Errorf("wrong key type")
 	}
 
-	var finalID string
-	lastEntry, streamExists := db.Streams[key]
+	lastID := ""
+	if stream, streamExists := db.Streams[key]; streamExists && len(stream) > 0 {
+		lastID = stream[len(stream)-1].ID
+	}
 
-	// Handle the case of an empty or new stream.
-	if !streamExists || len(lastEntry) == 0 {
-		if ID == "0-0" {
-			return "", fmt.Errorf(" The ID specified in XADD must be greater than 0-0")
-		} else {
-			finalID = ID
-		}
-	} else { // Handle existing stream
-		if ID == "0-0" {
-			return "", fmt.Errorf(" The ID specified in XADD must be greater than 0-0")
-		}
-		lastID := lastEntry[len(lastEntry)-1].ID
-
-		// Compare user-provIDed ID with the last one
-		lastParts := strings.Split(lastID, "-")
-		lastMs, _ := strconv.ParseInt(lastParts[0], 10, 64)
-		lastSeq, _ := strconv.ParseInt(lastParts[1], 10, 64)
-
-		IDParts := strings.Split(ID, "-")
-		IDMs, _ := strconv.ParseInt(IDParts[0], 10, 64)
-		IDSeq, _ := strconv.ParseInt(IDParts[1], 10, 64)
-
-		if IDMs < lastMs || (IDMs == lastMs && IDSeq <= lastSeq) {
-			return "", fmt.Errorf(" The ID specified in XADD is equal or smaller than the target stream top item")
-		}
-		finalID = ID
+	finalID, err := utils.ValidateStreamID(ID, lastID)
+	if err != nil {
+		return "", err
 	}
 
 	entry := streamEntry{
