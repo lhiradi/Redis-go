@@ -96,7 +96,7 @@ func handleConnection(conn net.Conn, db *DB) {
 
 			outPutID, err := db.XAdd(key, id, fields)
 			if err != nil {
-				errorMsg := fmt.Sprintf("-ERR %s\r\n", err.Error())
+				errorMsg := fmt.Sprintf("-ERR%s\r\n", err.Error())
 				conn.Write([]byte(errorMsg))
 				continue
 			}

@@ -86,7 +86,7 @@ func (db *DB) XAdd(key, id string, fields map[string]string) (string, error) {
 	// Handle the case of an empty or new stream.
 	if !streamExists || len(lastEntry) == 0 {
 		if id == "0-0" {
-			return "", fmt.Errorf("the ID specified in XADD must be greater than 0-0")
+			return "", fmt.Errorf(" The ID specified in XADD must be greater than 0-0")
 		} else {
 			finalID = id
 		}
@@ -103,7 +103,7 @@ func (db *DB) XAdd(key, id string, fields map[string]string) (string, error) {
 		idSeq, _ := strconv.ParseInt(idParts[1], 10, 64)
 
 		if idMs < lastMs || (idMs == lastMs && idSeq <= lastSeq) {
-			return "", fmt.Errorf("the ID specified in XADD is smaller or equal than the last one")
+			return "", fmt.Errorf(" The ID specified in XADD is smaller or equal than the last one")
 		}
 		finalID = id
 	}
