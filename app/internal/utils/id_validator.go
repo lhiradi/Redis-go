@@ -7,58 +7,26 @@ import (
 )
 
 func ValidateStreamID(ID, lastID string) (string, error) {
-	if ID == "0-0" {
+	finalID, err := GenerateStreamID(ID, lastID)
+	if err != nil {
+		return "", err
+	}
+
+	if finalID == "0-0" {
 		return "", fmt.Errorf(" The ID specified in XADD must be greater than 0-0")
 	}
 
-	if lastID == "" {
-		IDParts := strings.Split(ID, "-")
-		if len(IDParts) == 2 && IDParts[1] == "*" {
-			// A new stream with an auto-generated ID.
-			// The first entry's sequence number should be 1 if the millisecond is 0.
-			if IDParts[0] == "0" {
-				return "0-1", nil
-			}
-			return fmt.Sprintf("%s-0", IDParts[0]), nil
-		}
-		// If it's not a wildcard, return the ID as is.
-		return ID, nil
-	}
-
 	lastParts := strings.Split(lastID, "-")
-	lastMs, err := strconv.ParseInt(lastParts[0], 10, 64)
-	if err != nil {
-		return "", err
-	}
+	lastMs, _ := strconv.ParseInt(lastParts[0], 10, 64)
+	intLastSeq, _ := strconv.ParseInt(lastParts[1], 10, 64)
 
-	intLastSeq, err := strconv.ParseInt(lastParts[1], 10, 64)
-	if err != nil {
-		return "", err
-	}
-
-	IDParts := strings.Split(ID, "-")
-	IDMs, err := strconv.ParseInt(IDParts[0], 10, 64)
-	if err != nil {
-		return "", err
-	}
-
-	IDSeq := IDParts[1]
-	if IDSeq == "*" && IDMs == lastMs {
-		return fmt.Sprintf("%d-%d", IDMs, intLastSeq+1), nil
-	} else if IDSeq == "*" {
-		return fmt.Sprintf("%d-%d", IDMs, 0), nil
-	} else if IDSeq == "*" && IDMs == 0 {
-		return fmt.Sprintf("%d-%d", IDMs, 1), nil
-	}
-
-	intIDSeq, err := strconv.ParseInt(IDSeq, 10, 64)
-	if err != nil {
-		return "", err
-	}
+	IDParts := strings.Split(finalID, "-")
+	IDMs, _ := strconv.ParseInt(IDParts[0], 10, 64)
+	intIDSeq, _ := strconv.ParseInt(IDParts[1], 10, 64)
 
 	if IDMs < lastMs || (IDMs == lastMs && intIDSeq <= intLastSeq) {
 		return "", fmt.Errorf(" The ID specified in XADD is equal or smaller than the target stream top item")
 	}
 
-	return ID, nil
+	return finalID, nil
 }
