@@ -104,6 +104,8 @@ func (db *DB) XAdd(key, id string, fields map[string]string) (string, error) {
 
 		if idMs < lastMs || (idMs == lastMs && idSeq <= lastSeq) {
 			return "", fmt.Errorf(" The ID specified in XADD is equal or smaller than the target stream top item")
+		} else if id == "0-0" {
+			return "", fmt.Errorf(" The ID specified in XADD must be greater than 0-0")
 		}
 		finalID = id
 	}
