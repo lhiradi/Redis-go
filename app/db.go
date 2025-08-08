@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -72,13 +73,32 @@ func (db *DB) Set(key, value string, ttlMilSec int64) {
 func (db *DB) XAdd(key, id string, fields map[string]string) (string, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
+	var newID string
 
 	if _, ok := db.data[key]; ok {
 		return "", fmt.Errorf("wrong key type")
 	}
+	sepratedId := strings.Split(id, "-")
+	lastEntry := db.streams[key][len(db.streams[key])-1]
+	lastSepratedId := strings.Split(lastEntry.id, "-")
+
+	if id == "0-0" {
+		return "", fmt.Errorf("the ID specified in XADD must be greater than 0-0")
+	}
+	if sepratedId[0] > lastSepratedId[0] {
+		newID = id
+	} else if sepratedId[0] == lastSepratedId[0] {
+		if sepratedId[1] > lastSepratedId[1] {
+			newID = id
+		} else {
+			return "", fmt.Errorf("the ID specified in XADD is equal or smaller than the target stream top item")
+		}
+	} else {
+		return "", fmt.Errorf("the ID specified in XADD is equal or smaller than the target stream top item")
+	}
 
 	entry := streamEntry{
-		id:     id,
+		id:     newID,
 		fileds: fields,
 	}
 
