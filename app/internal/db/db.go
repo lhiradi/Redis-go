@@ -2,6 +2,8 @@ package db
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -10,11 +12,11 @@ import (
 
 type DB struct {
 	Data    map[string]cacheValue
-	Streams map[string][]streamEntry
+	Streams map[string][]StreamEntry
 	mu      sync.RWMutex
 }
 
-type streamEntry struct {
+type StreamEntry struct {
 	ID     string
 	Fields map[string]string
 }
@@ -27,7 +29,7 @@ type cacheValue struct {
 func New() *DB {
 	return &DB{
 		Data:    make(map[string]cacheValue),
-		Streams: make(map[string][]streamEntry),
+		Streams: make(map[string][]StreamEntry),
 	}
 }
 
@@ -75,7 +77,6 @@ func (db *DB) XAdd(key, ID string, fields map[string]string) (string, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Check if the key exists but is not a stream
 	if _, ok := db.Data[key]; ok {
 		return "", fmt.Errorf("wrong key type")
 	}
@@ -90,11 +91,31 @@ func (db *DB) XAdd(key, ID string, fields map[string]string) (string, error) {
 		return "", err
 	}
 
-	entry := streamEntry{
+	entry := StreamEntry{
 		ID:     finalID,
 		Fields: fields,
 	}
 
 	db.Streams[key] = append(db.Streams[key], entry)
 	return finalID, nil
+}
+
+func (db *DB) XRange(key string, start, end int64) []StreamEntry {
+	var wantedEntries []StreamEntry
+	entries, ok := db.Streams[key]
+	if !ok {
+		return nil
+	}
+
+	for i := range entries {
+		entry := entries[i]
+		entryIDMs := strings.Split(entry.ID, "-")[0]
+		intEntryIDMs, _ := strconv.ParseInt(entryIDMs, 10, 64)
+		if intEntryIDMs >= start || intEntryIDMs <= end {
+			wantedEntries = append(wantedEntries, entry)
+		} else {
+			continue
+		}
+	}
+	return wantedEntries
 }

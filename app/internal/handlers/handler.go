@@ -106,6 +106,18 @@ func HandleConnection(conn net.Conn, db *db.DB) {
 			response := fmt.Sprintf("$%d\r\n%s\r\n", len(outPutID), outPutID)
 			conn.Write([]byte(response))
 
+		case "XRANGE":
+			if len(args) < 4 {
+				conn.Write([]byte("-ERR wrong number of arguments for 'XRANGE' command\r\n"))
+				continue
+			}
+			key := args[1]
+			start, _ := strconv.ParseInt(args[2], 10, 64)
+			end, _ := strconv.ParseInt(args[3], 10, 64)
+			entries := db.XRange(key, start, end)
+			response := formatStreamEntries(entries)
+			conn.Write([]byte(response))
+
 		default:
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
