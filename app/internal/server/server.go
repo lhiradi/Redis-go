@@ -1,9 +1,12 @@
-package main
+package server
 
 import (
 	"fmt"
 	"net"
 	"os"
+
+	"github.com/codecrafters-io/redis-starter-go/app/internal/db"
+	"github.com/codecrafters-io/redis-starter-go/app/internal/handlers"
 )
 
 func Start(port string) {
@@ -16,7 +19,7 @@ func Start(port string) {
 
 	fmt.Println("Server listening on port", port)
 
-	db := New()
+	db := db.New()
 
 	for {
 		conn, err := l.Accept()
@@ -24,6 +27,6 @@ func Start(port string) {
 			fmt.Println("Error accepting connection:", err.Error())
 			continue
 		}
-		go handleConnection(conn, db)
+		go handlers.HandleConnection(conn, db)
 	}
 }

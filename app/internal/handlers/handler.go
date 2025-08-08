@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"bufio"
@@ -6,14 +6,17 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/codecrafters-io/redis-starter-go/app/internal/db"
+	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
-func handleConnection(conn net.Conn, db *DB) {
+func HandleConnection(conn net.Conn, db *db.DB) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 
 	for {
-		args := parseArgs(reader)
+		args := utils.ParseArgs(reader)
 		if args == nil {
 			return
 		}

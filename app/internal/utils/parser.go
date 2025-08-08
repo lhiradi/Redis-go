@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"bufio"
@@ -7,7 +7,7 @@ import (
 	"log"
 )
 
-func parseArgs(reader *bufio.Reader) []string {
+func ParseArgs(reader *bufio.Reader) []string {
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		if err == io.EOF {
