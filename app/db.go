@@ -103,7 +103,7 @@ func (db *DB) XAdd(key, id string, fields map[string]string) (string, error) {
 		idSeq, _ := strconv.ParseInt(idParts[1], 10, 64)
 
 		if idMs < lastMs || (idMs == lastMs && idSeq <= lastSeq) {
-			return "", fmt.Errorf(" The ID specified in XADD is smaller or equal than the last one")
+			return "", fmt.Errorf(" The ID specified in XADD is smaller or equal than the target stream top item")
 		}
 		finalID = id
 	}
