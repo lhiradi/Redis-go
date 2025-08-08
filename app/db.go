@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -73,35 +74,45 @@ func (db *DB) Set(key, value string, ttlMilSec int64) {
 func (db *DB) XAdd(key, id string, fields map[string]string) (string, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	var newID string
 
+	// Check if the key exists but is not a stream
 	if _, ok := db.data[key]; ok {
 		return "", fmt.Errorf("wrong key type")
 	}
-	sepratedId := strings.Split(id, "-")
-	lastEntry := db.streams[key][len(db.streams[key])-1]
-	lastSepratedId := strings.Split(lastEntry.id, "-")
 
-	if id == "0-0" {
-		return "", fmt.Errorf("the ID specified in XADD must be greater than 0-0")
-	}
-	if sepratedId[0] > lastSepratedId[0] {
-		newID = id
-	} else if sepratedId[0] == lastSepratedId[0] {
-		if sepratedId[1] > lastSepratedId[1] {
-			newID = id
+	var finalID string
+	lastEntry, streamExists := db.streams[key]
+
+	// Handle the case of an empty or new stream.
+	if !streamExists || len(lastEntry) == 0 {
+		if id == "0-0" {
+			return "", fmt.Errorf("the ID specified in XADD must be greater than 0-0")
 		} else {
-			return "", fmt.Errorf("the ID specified in XADD is equal or smaller than the target stream top item")
+			finalID = id
 		}
-	} else {
-		return "", fmt.Errorf("the ID specified in XADD is equal or smaller than the target stream top item")
+	} else { // Handle existing stream
+		lastID := lastEntry[len(lastEntry)-1].id
+
+		// Compare user-provided ID with the last one
+		lastParts := strings.Split(lastID, "-")
+		lastMs, _ := strconv.ParseInt(lastParts[0], 10, 64)
+		lastSeq, _ := strconv.ParseInt(lastParts[1], 10, 64)
+
+		idParts := strings.Split(id, "-")
+		idMs, _ := strconv.ParseInt(idParts[0], 10, 64)
+		idSeq, _ := strconv.ParseInt(idParts[1], 10, 64)
+
+		if idMs < lastMs || (idMs == lastMs && idSeq <= lastSeq) {
+			return "", fmt.Errorf("the ID specified in XADD is smaller or equal than the last one")
+		}
+		finalID = id
 	}
 
 	entry := streamEntry{
-		id:     newID,
+		id:     finalID,
 		fileds: fields,
 	}
 
 	db.streams[key] = append(db.streams[key], entry)
-	return entry.id, nil
+	return finalID, nil
 }
