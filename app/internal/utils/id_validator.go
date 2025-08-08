@@ -4,10 +4,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func ValidateStreamID(ID, lastID string) (string, error) {
-	if ID == "0-0" {
+	switch ID {
+	case "*":
+		return fmt.Sprintf("%d-%d", time.Now().UnixMilli(), 0), nil
+	case "0-0":
 		return "", fmt.Errorf(" The ID specified in XADD must be greater than 0-0")
 	}
 
