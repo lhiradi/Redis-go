@@ -84,9 +84,32 @@ func handleConnection(conn net.Conn, db *DB) {
 			} else {
 				conn.Write([]byte("+none\r\n"))
 			}
+		case "XADD":
+			if len(args) < 5 || len(args)%2 != 1 {
+				conn.Write([]byte("-ERR wrong number of arguments for 'XADD' command\r\n"))
+				continue
+			}
+			key := args[1]
+			id := args[2]
+
+			fields := make(map[string]string)
+			for i := 3; i < len(args); i += 2 {
+				fields[args[i]] = args[i+1]
+			}
+
+			outPutID, err := db.XAdd(key, id, fields)
+			if err != nil {
+				errorMsg := fmt.Sprintf("-ERR %s\r\n", err.Error())
+				conn.Write([]byte(errorMsg))
+				continue
+			}
+			response := fmt.Sprintf("$%d\r\n%s\r\n", len(outPutID), outPutID)
+			conn.Write([]byte(response))
+
 		default:
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
 		}
+
 	}
 }
