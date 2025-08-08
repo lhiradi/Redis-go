@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
@@ -84,7 +83,7 @@ func handleConnection(conn net.Conn, db *DB) {
 	reader := bufio.NewReader(conn)
 
 	for {
-		args := utils.parseArgs(reader)
+		args := parseArgs(reader)
 		if args == nil {
 			return
 		}
