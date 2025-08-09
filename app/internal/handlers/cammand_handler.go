@@ -293,5 +293,5 @@ func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	infoString := infoBuilder.String()
 
 	// Return the single string as a RESP bulk string with the correct total length.
-	return fmt.Sprintf("$%d\r\n%s", len(infoString), infoString), nil, nil
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(infoString), infoString), nil, nil
 }
