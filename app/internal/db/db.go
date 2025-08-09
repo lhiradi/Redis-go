@@ -14,6 +14,7 @@ type DB struct {
 	Data    map[string]cacheValue
 	Streams map[string][]StreamEntry
 	mu      sync.RWMutex
+	Role    string
 }
 
 type StreamEntry struct {
@@ -31,10 +32,11 @@ type cacheValue struct {
 	Ttl   int64
 }
 
-func New() *DB {
+func New(role string) *DB {
 	return &DB{
 		Data:    make(map[string]cacheValue),
 		Streams: make(map[string][]StreamEntry),
+		Role:    role,
 	}
 }
 

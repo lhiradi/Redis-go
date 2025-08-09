@@ -9,7 +9,7 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/internal/handlers"
 )
 
-func Start(port string) {
+func Start(port, replicaof string) {
 	l, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		fmt.Println("Failed to bind to port", port)
@@ -19,7 +19,11 @@ func Start(port string) {
 
 	fmt.Println("Server listening on port", port)
 
-	db := db.New()
+	role := "master"
+	if replicaof != "" {
+		role = "slave"
+	}
+	db := db.New(role)
 
 	for {
 		conn, err := l.Accept()

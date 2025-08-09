@@ -13,10 +13,11 @@ import (
 var _ = net.Listen
 var _ = os.Exit
 var port = flag.String("port", "6379", "Port for redis server")
+var replicaOf = flag.String("replicaof", "", "Defines replica of master redis server")
 
 func main() {
 	fmt.Println("Logs from your program will appear here!")
 	flag.Parse()
 
-	server.Start(*port)
+	server.Start(*port, *replicaOf)
 }

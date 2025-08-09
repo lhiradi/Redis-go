@@ -281,5 +281,6 @@ func handleDiscard(activeTx *transaction.Transaction) (string, *transaction.Tran
 	return "+OK\r\n", nil, nil
 }
 func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
-	return "$11\r\nrole:master\r\n", nil, nil
+	response := fmt.Sprintf("role:%s", DB.Role)
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(response), response), nil, nil
 }
