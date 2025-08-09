@@ -54,25 +54,23 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 
 		command := strings.ToUpper(args[0])
 
-		if handler, ok := commandHandlers[command]; ok {
-			// Check if we are in a transaction and the command is not EXEC
-			if activeTx != nil && command != "EXEC" {
+		if command == "EXEC" {
+			response, newTx, err := handleExec(args, DB, activeTx, commandHandlers)
+			activeTx = newTx
+			if err != nil {
+				writeError(conn, err)
+				continue
+			}
+			conn.Write([]byte(response))
+			continue
+		} else if handler, ok := commandHandlers[command]; ok {
+			// Check if we are in a transaction
+			if activeTx != nil {
 				activeTx.AddCommand(command, args[1:])
 				conn.Write([]byte("+QUEUED\r\n"))
 				continue
 			}
 
-			if command == "EXEC" {
-				response, newTx, err := handleExec(args, DB, activeTx, commandHandlers)
-				activeTx = newTx
-				if err != nil {
-					writeError(conn, err)
-					continue
-				}
-				conn.Write([]byte(response))
-				continue
-			}
-			
 			// Handle regular commands outside of a transaction or special commands like MULTI
 			response, newTx, err := handler(args, DB, activeTx)
 			if err != nil {
