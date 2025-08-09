@@ -222,3 +222,6 @@ func handleINCR(conn net.Conn, args []string, DB *db.DB) {
 func handleMulti(conn net.Conn, args []string, DB *db.DB) {
 	conn.Write([]byte("+OK\r\n"))
 }
+func handleExec(conn net.Conn, args []string, DB *db.DB) {
+	writeError(conn, fmt.Errorf(" EXEC without MULTI"))
+}

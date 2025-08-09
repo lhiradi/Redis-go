@@ -24,6 +24,7 @@ var commandHandlers = map[string]CmdHandler{
 	"XREAD":  handleXRead,
 	"INCR":   handleINCR,
 	"MULTI":  handleMulti,
+	"EXEC":   handleExec,
 }
 
 func HandleConnection(conn net.Conn, DB *db.DB) {
