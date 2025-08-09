@@ -11,7 +11,7 @@ import (
 )
 
 func writeError(conn net.Conn, err error) {
-	errorMsg := fmt.Sprintf("-ERR %s\r\n", err.Error())
+	errorMsg := fmt.Sprintf("-ERR%s\r\n", err.Error())
 	conn.Write([]byte(errorMsg))
 }
 
