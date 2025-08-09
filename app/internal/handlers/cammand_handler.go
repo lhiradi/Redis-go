@@ -218,3 +218,7 @@ func handleINCR(conn net.Conn, args []string, DB *db.DB) {
 	response := fmt.Sprintf(":%d\r\n", value)
 	conn.Write([]byte(response))
 }
+
+func handleMulti(conn net.Conn, args []string, DB *db.DB) {
+	conn.Write([]byte("+OK\r\n"))
+}
