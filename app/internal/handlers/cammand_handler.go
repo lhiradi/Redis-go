@@ -171,6 +171,10 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB) {
 			break
 		}
 
+		if blockTimeout == 0 && streamsIndex == -1 {
+			continue
+		}
+
 		if time.Since(start) >= time.Duration(blockTimeout)*time.Millisecond {
 			break
 		}
