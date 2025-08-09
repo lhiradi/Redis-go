@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strconv"
+	"strings"
 )
 
 func ParseArgs(reader *bufio.Reader) []string {
@@ -59,4 +61,11 @@ func ParseArgs(reader *bufio.Reader) []string {
 		args[i] = string(arg[:strLen])
 	}
 	return args
+}
+
+func ParsID(id string) (int64, int64) {
+	parts := strings.Split(id, "-")
+	ms, _ := strconv.ParseInt(parts[0], 10, 64)
+	seq, _ := strconv.ParseInt(parts[1], 10, 64)
+	return ms, seq
 }

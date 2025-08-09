@@ -2,8 +2,6 @@ package db
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -101,31 +99,23 @@ func (db *DB) XAdd(key, ID string, fields map[string]string) (string, error) {
 }
 
 func (db *DB) XRange(key, start, end string) []StreamEntry {
-	var wantedEntries []StreamEntry
 	entries, ok := db.Streams[key]
 	if !ok {
 		return nil
 	}
 
-	startIDMs, _ := strconv.ParseInt(strings.Split(start, "-")[0], 10, 64)
-	startIDSeq, _ := strconv.ParseInt(strings.Split(start, "-")[1], 10, 64)
-	endIDMs, _ := strconv.ParseInt(strings.Split(end, "-")[0], 10, 64)
-	endIDSeq, _ := strconv.ParseInt(strings.Split(end, "-")[1], 10, 64)
+	startMs, startSeq := utils.ParsID(start)
+	endMs, endSeq := utils.ParsID(end)
 
-	for i := range entries {
-		entry := entries[i]
-		entryIDMs, _ := strconv.ParseInt(strings.Split(entry.ID, "-")[0], 10, 64)
-		entryIDSeq, _ := strconv.ParseInt(strings.Split(entry.ID, "-")[1], 10, 63)
-		if entryIDMs >= startIDMs || entryIDMs <= endIDMs {
-			if entryIDSeq >= startIDSeq || entryIDSeq <= endIDSeq {
-				wantedEntries = append(wantedEntries, entry)
-			} else {
-				continue
-			}
+	var wantedEntries []StreamEntry
 
-		} else {
-			continue
+	for _, entry := range entries {
+		entryMs, entrySeq := utils.ParsID(entry.ID)
+		if utils.CompareIDs(entryMs, entrySeq, startMs, startSeq) >= 0 &&
+			utils.CompareIDs(entryMs, entrySeq, endMs, endSeq) <= 0 {
+			wantedEntries = append(wantedEntries, entry)
 		}
 	}
+
 	return wantedEntries
 }
