@@ -11,8 +11,8 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
-// CmdHandler now takes a transaction object and returns the potentially updated transaction and an error.
-type CmdHandler func(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error)
+// CmdHandler now takes a transaction object and returns the RESP string, the updated transaction and an error.
+type CmdHandler func(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error)
 
 // Map command strings to handler functions, updated for the new signature.
 var commandHandlers = map[string]CmdHandler{
@@ -23,10 +23,18 @@ var commandHandlers = map[string]CmdHandler{
 	"TYPE":   handleType,
 	"XADD":   handleXAdd,
 	"XRANGE": handleXRange,
-	"XREAD":  handleXRead,
 	"INCR":   handleINCR,
 	"MULTI":  handleMulti,
-	"EXEC":   handleExec,
+}
+
+func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+	response, tx, err := handleXRead(conn, args, DB, activeTx)
+	if err != nil {
+		writeError(conn, err)
+		return tx, nil
+	}
+	conn.Write([]byte(response))
+	return tx, nil
 }
 
 func HandleConnection(conn net.Conn, DB *db.DB) {
@@ -47,15 +55,43 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 		command := strings.ToUpper(args[0])
 
 		if handler, ok := commandHandlers[command]; ok {
-			var err error
-			// Pass the current transaction state and update it with the return value
-			activeTx, err = handler(conn, args, DB, activeTx)
+			// Check if we are in a transaction and the command is not EXEC
+			if activeTx != nil && command != "EXEC" {
+				activeTx.AddCommand(command, args[1:])
+				conn.Write([]byte("+QUEUED\r\n"))
+				continue
+			}
+
+			if command == "EXEC" {
+				response, newTx, err := handleExec(args, DB, activeTx, commandHandlers)
+				activeTx = newTx
+				if err != nil {
+					writeError(conn, err)
+					continue
+				}
+				conn.Write([]byte(response))
+				continue
+			}
+			
+			// Handle regular commands outside of a transaction or special commands like MULTI
+			response, newTx, err := handler(args, DB, activeTx)
 			if err != nil {
 				writeError(conn, err)
+				activeTx = nil // Reset transaction on error
+				continue
 			}
+			activeTx = newTx
+			conn.Write([]byte(response))
+
+		} else if command == "XREAD" {
+			// XREAD needs direct access to conn for blocking, so it's handled as a special case.
+			activeTx, _ = handleXReadWrapper(conn, args, DB, activeTx)
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
+			if activeTx != nil {
+				activeTx = nil
+			}
 		}
 	}
 }

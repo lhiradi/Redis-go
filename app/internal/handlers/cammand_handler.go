@@ -16,44 +16,39 @@ func writeError(conn net.Conn, err error) {
 	conn.Write([]byte(errorMsg))
 }
 
-func handlePing(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handlePing(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("PING", args[1:])
-		conn.Write([]byte("+QUEUED\r\n"))
-		return activeTx, nil
+		return "+QUEUED\r\n", activeTx, nil
 	}
 	if len(args) == 1 {
-		conn.Write([]byte("+PONG\r\n"))
+		return "+PONG\r\n", nil, nil
 	} else {
 		response := fmt.Sprintf("$%d\r\n%s\r\n", len(args[1]), args[1])
-		conn.Write([]byte(response))
+		return response, nil, nil
 	}
-	return nil, nil
 }
 
-func handleEcho(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handleEcho(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("ECHO", args[1:])
-		conn.Write([]byte("+QUEUED\r\n"))
-		return activeTx, nil
+		return "+QUEUED\r\n", activeTx, nil
 	}
 	if len(args) >= 2 {
 		response := fmt.Sprintf("$%d\r\n%s\r\n", len(args[1]), args[1])
-		conn.Write([]byte(response))
+		return response, nil, nil
 	} else {
-		conn.Write([]byte("$0\r\n\r\n"))
+		return "$0\r\n\r\n", nil, nil
 	}
-	return nil, nil
 }
 
-func handleSet(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handleSet(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("SET", args[1:])
-		conn.Write([]byte("+QUEUED\r\n"))
-		return activeTx, nil
+		return "+QUEUED\r\n", activeTx, nil
 	}
 	if len(args) < 3 {
-		return nil, fmt.Errorf(" wrong number of arguments for 'SET' command")
+		return "", nil, fmt.Errorf(" wrong number of arguments for 'SET' command")
 	}
 	key := args[1]
 	value := args[2]
@@ -62,59 +57,53 @@ func handleSet(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Tr
 		var err error
 		ttlMs, err = strconv.ParseInt(args[4], 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf(" invalid PX argument")
+			return "", nil, fmt.Errorf(" invalid PX argument")
 		}
 	}
 
 	DB.Set(key, value, ttlMs)
-	conn.Write([]byte("+OK\r\n"))
-	return nil, nil
+	return "+OK\r\n", nil, nil
 }
 
-func handleGet(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handleGet(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("GET", args[1:])
-		conn.Write([]byte("+QUEUED\r\n"))
-		return activeTx, nil
+		return "+QUEUED\r\n", activeTx, nil
 	}
 	if len(args) < 2 {
-		return nil, fmt.Errorf(" wrong number of arguments for 'GET' command")
+		return "", nil, fmt.Errorf(" wrong number of arguments for 'GET' command")
 	}
 
 	key := args[1]
 	if val, ok := DB.Get(key); ok {
 		response := fmt.Sprintf("$%d\r\n%s\r\n", len(val), val)
-		conn.Write([]byte(response))
+		return response, nil, nil
 	} else {
-		conn.Write([]byte("$-1\r\n"))
+		return "$-1\r\n", nil, nil
 	}
-	return nil, nil
 }
 
-func handleType(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handleType(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("TYPE", args[1:])
-		conn.Write([]byte("+QUEUED\r\n"))
-		return activeTx, nil
+		return "+QUEUED\r\n", activeTx, nil
 	}
 	if len(args) < 2 {
-		return nil, fmt.Errorf(" wrong number of arguments for 'GET' command")
+		return "", nil, fmt.Errorf(" wrong number of arguments for 'GET' command")
 	}
 	key := args[1]
 	keyType := DB.GetType(key)
 	response := fmt.Sprintf("+%s\r\n", keyType)
-	conn.Write([]byte(response))
-	return nil, nil
+	return response, nil, nil
 }
 
-func handleXAdd(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handleXAdd(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("XADD", args[1:])
-		conn.Write([]byte("+QUEUED\r\n"))
-		return activeTx, nil
+		return "+QUEUED\r\n", activeTx, nil
 	}
 	if len(args) < 5 || len(args)%2 != 1 {
-		return nil, fmt.Errorf(" wrong number of arguments for 'XADD' command")
+		return "", nil, fmt.Errorf(" wrong number of arguments for 'XADD' command")
 	}
 	key := args[1]
 	id := args[2]
@@ -126,40 +115,35 @@ func handleXAdd(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.T
 
 	outPutID, err := DB.XAdd(key, id, fields)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	response := fmt.Sprintf("$%d\r\n%s\r\n", len(outPutID), outPutID)
-	conn.Write([]byte(response))
-	return nil, nil
+	return response, nil, nil
 }
 
-func handleXRange(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handleXRange(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("XRANGE", args[1:])
-		conn.Write([]byte("+QUEUED\r\n"))
-		return activeTx, nil
+		return "+QUEUED\r\n", activeTx, nil
 	}
 	if len(args) < 4 {
-		return nil, fmt.Errorf(" wrong number of arguments for 'XRANGE' command")
+		return "", nil, fmt.Errorf(" wrong number of arguments for 'XRANGE' command")
 	}
 	key := args[1]
 	start := args[2]
 	end := args[3]
 	entries := DB.XRange(key, start, end)
 	response := formatStreamEntries(entries)
-	conn.Write([]byte(response))
-	return nil, nil
+	return response, nil, nil
 }
 
-func handleXRead(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handleXRead(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("XREAD", args[1:])
-		conn.Write([]byte("+QUEUED\r\n"))
-		return activeTx, nil
+		return "+QUEUED\r\n", activeTx, nil
 	}
 	if len(args) < 4 {
-		conn.Write([]byte("-ERR wrong number of arguments for 'XREAD' command\r\n"))
-		return nil, nil
+		return "-ERR wrong number of arguments for 'XREAD' command\r\n", nil, nil
 	}
 
 	var blockTimeout int64 = -1
@@ -168,14 +152,12 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.
 	for i, arg := range args {
 		if strings.ToUpper(arg) == "BLOCK" {
 			if i+1 >= len(args) {
-				conn.Write([]byte("-ERR BLOCK requires a timeout\r\n"))
-				return nil, nil
+				return "-ERR BLOCK requires a timeout\r\n", nil, nil
 			}
 			var err error
 			blockTimeout, err = strconv.ParseInt(args[i+1], 10, 64)
 			if err != nil {
-				conn.Write([]byte("-ERR timeout is not an integer or out of range of 64-bit integer\r\n"))
-				return nil, nil
+				return "-ERR timeout is not an integer or out of range of 64-bit integer\r\n", nil, nil
 			}
 		} else if strings.ToUpper(arg) == "STREAMS" {
 			streamsIndex = i
@@ -184,8 +166,7 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.
 	}
 
 	if streamsIndex == -1 || len(args) <= streamsIndex+2 {
-		conn.Write([]byte("-ERR wrong number of arguments for 'XREAD' command\r\n"))
-		return nil, nil
+		return "-ERR wrong number of arguments for 'XREAD' command\r\n", nil, nil
 	}
 
 	numStreams := (len(args) - (streamsIndex + 1)) / 2
@@ -231,8 +212,7 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.
 	}
 
 	if !hasNewEntries {
-		conn.Write([]byte("$-1\r\n"))
-		return nil, nil
+		return "$-1\r\n", nil, nil
 	}
 
 	var builder strings.Builder
@@ -242,50 +222,58 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.
 		builder.WriteString(fmt.Sprintf("*2\r\n$%d\r\n%s\r\n", len(streamEntry.Key), streamEntry.Key))
 		builder.WriteString(formatStreamEntries(streamEntry.Entries))
 	}
-	conn.Write([]byte(builder.String()))
-	return nil, nil
+	return builder.String(), nil, nil
 }
 
-func handleINCR(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handleINCR(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("INCR", args[1:])
-		conn.Write([]byte("+QUEUED\r\n"))
-		return activeTx, nil
+		return "+QUEUED\r\n", activeTx, nil
 	}
 	if len(args) < 2 {
-		return nil, fmt.Errorf(" wrong number of arguments for 'ICNR' command")
+		return "", nil, fmt.Errorf(" wrong number of arguments for 'INCR' command")
 	}
 	key := args[1]
 	value := DB.INCR(key)
 	if value == -1 {
-		return nil, fmt.Errorf(" value is not an integer or out of range")
+		return "", nil, fmt.Errorf(" value is not an integer or out of range")
 	}
 	response := fmt.Sprintf(":%d\r\n", value)
-	conn.Write([]byte(response))
-	return nil, nil
+	return response, nil, nil
 }
 
-func handleMulti(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handleMulti(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
-		return activeTx, fmt.Errorf(" MULTI is already active")
+		return "", activeTx, fmt.Errorf(" MULTI is already active")
 	}
-	conn.Write([]byte("+OK\r\n"))
-	return transaction.NewTransaction(), nil
+	return "+OK\r\n", transaction.NewTransaction(), nil
 }
 
-func handleExec(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
+func handleExec(args []string, DB *db.DB, activeTx *transaction.Transaction, commandHandlers map[string]CmdHandler) (string, *transaction.Transaction, error) {
 	if activeTx == nil {
-		return nil, fmt.Errorf(" EXEC without MULTI")
+		return "", nil, fmt.Errorf(" EXEC without MULTI")
 	}
 
 	if len(activeTx.Commands) == 0 {
-		conn.Write([]byte("*0\r\n")) // Returns an empty array for empty transactions
-		return nil, nil
+		return "*0\r\n", nil, nil
 	}
 
-	// This is where you would add the logic to execute all commands in the activeTx.Commands slice.
-	// For this example, we will just return a simple response and reset the transaction state.
-	// You need to replace this with your actual execution logic.
-	conn.Write([]byte("+OK\r\n"))
-	return nil, nil
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("*%d\r\n", len(activeTx.Commands)))
+
+	for _, command := range activeTx.Commands {
+		handler, ok := commandHandlers[command.Name]
+		if !ok {
+			builder.WriteString(fmt.Sprintf("-ERR unknown command '%s'\r\n", command.Name))
+			continue
+		}
+		// The activeTx is nil here because the nested commands are not part of another transaction
+		response, _, err := handler(append([]string{command.Name}, command.Args...), DB, nil)
+		if err != nil {
+			builder.WriteString(fmt.Sprintf("-ERR%s\r\n", err.Error()))
+		} else {
+			builder.WriteString(response)
+		}
+	}
+	return builder.String(), nil, nil
 }
