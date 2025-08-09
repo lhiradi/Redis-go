@@ -11,7 +11,7 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
-func HandleConnection(conn net.Conn, db *db.DB) {
+func HandleConnection(conn net.Conn, DB *db.DB) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 
@@ -59,7 +59,7 @@ func HandleConnection(conn net.Conn, db *db.DB) {
 				}
 			}
 
-			db.Set(key, value, ttlMs)
+			DB.Set(key, value, ttlMs)
 			conn.Write([]byte("+OK\r\n"))
 		case "GET":
 			if len(args) < 2 {
@@ -68,7 +68,7 @@ func HandleConnection(conn net.Conn, db *db.DB) {
 			}
 
 			key := args[1]
-			if val, ok := db.Get(key); ok {
+			if val, ok := DB.Get(key); ok {
 				response := fmt.Sprintf("$%d\r\n%s\r\n", len(val), val)
 				conn.Write([]byte(response))
 			} else {
@@ -81,7 +81,7 @@ func HandleConnection(conn net.Conn, db *db.DB) {
 				continue
 			}
 			key := args[1]
-			keyType := db.GetType(key)
+			keyType := DB.GetType(key)
 			response := fmt.Sprintf("+%s\r\n", keyType)
 			conn.Write([]byte(response))
 		case "XADD":
@@ -97,7 +97,7 @@ func HandleConnection(conn net.Conn, db *db.DB) {
 				fields[args[i]] = args[i+1]
 			}
 
-			outPutID, err := db.XAdd(key, id, fields)
+			outPutID, err := DB.XAdd(key, id, fields)
 			if err != nil {
 				errorMsg := fmt.Sprintf("-ERR%s\r\n", err.Error())
 				conn.Write([]byte(errorMsg))
@@ -114,7 +114,7 @@ func HandleConnection(conn net.Conn, db *db.DB) {
 			key := args[1]
 			start := args[2]
 			end := args[3]
-			entries := db.XRange(key, start, end)
+			entries := DB.XRange(key, start, end)
 			response := formatStreamEntries(entries)
 			conn.Write([]byte(response))
 
@@ -122,13 +122,22 @@ func HandleConnection(conn net.Conn, db *db.DB) {
 			if len(args) < 4 {
 				conn.Write([]byte("-ERR wrong number of arguments for 'XRANGE' command\r\n"))
 				continue
+			} else if len(args) > 4 && len(args)%2 == 0 {
+				response := ""
+				for i := 2; i <= 3; i++ {
+					key := args[i]
+					ID := args[i+2]
+					entries := DB.XREAD(key, ID)
+					response += formatXReadEntries(key, entries) + "\n"
+				}
+				conn.Write([]byte(response))
+			} else {
+				key := args[2]
+				ID := args[3]
+				entries := DB.XREAD(key, ID)
+				response := formatXReadEntries(key, entries)
+				conn.Write([]byte(response))
 			}
-			key := args[2]
-			ID := args[3]
-			entries := db.XREAD(key, ID)
-			response := formatXReadEntries(key, entries)
-			conn.Write([]byte(response))
-
 		default:
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
