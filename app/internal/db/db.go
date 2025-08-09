@@ -172,5 +172,6 @@ func (db *DB) INCR(key string) int64 {
 
 	intVal, _ := strconv.ParseInt(val.Value, 10, 64)
 	val.Value = strconv.Itoa(int(intVal + 1))
+	db.Data[key] = val
 	return intVal + 1
 }
