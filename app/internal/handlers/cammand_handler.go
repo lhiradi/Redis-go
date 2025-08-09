@@ -282,7 +282,7 @@ func handleDiscard(activeTx *transaction.Transaction) (string, *transaction.Tran
 }
 func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	var builder strings.Builder
-	builder.WriteString("*3\r\n")
+	
 	builder.WriteString(fmt.Sprintf("$%d\r\nrole:%s\r\n", len(DB.Role)+5, DB.Role))
 	builder.WriteString(fmt.Sprintf("$%d\r\nmaster_replid:%s\r\n", len(DB.ID)+14, DB.ID))
 	builder.WriteString(fmt.Sprintf("$%d\r\nmaster_repl_offset:%d\r\n", 20, 0))
