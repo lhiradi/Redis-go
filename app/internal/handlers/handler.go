@@ -124,7 +124,7 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 				continue
 			} else if len(args) > 4 && len(args)%2 == 0 {
 				response := ""
-				for i := 2; i <= 3; i++ {
+				for i := 2; i < 4; i++ {
 					key := args[i]
 					ID := args[i+2]
 					entries := DB.XREAD(key, ID)
