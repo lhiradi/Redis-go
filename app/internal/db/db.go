@@ -167,7 +167,7 @@ func (db *DB) INCR(key string) int64 {
 	val, ok := db.Data[key]
 	if !ok {
 		db.Set(key, "1", 0)
-		return 1
+		return int64(1)
 	}
 
 	intVal, _ := strconv.ParseInt(val.Value, 10, 64)
