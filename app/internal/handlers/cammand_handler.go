@@ -203,3 +203,14 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB) {
 	}
 	conn.Write([]byte(builder.String()))
 }
+
+func handleICNR(conn net.Conn, args []string, DB *db.DB) {
+	if len(args) < 2 {
+		conn.Write([]byte("-ERR wrong number of arguments for 'ICNR' command\r\n"))
+		return
+	}
+	key := args[1]
+	value := DB.ICNR(key)
+	response := fmt.Sprintf(":%d\r\n", value)
+	conn.Write([]byte(response))
+}

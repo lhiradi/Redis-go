@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -157,4 +158,18 @@ func (db *DB) XREAD(key, ID string) []StreamEntry {
 	}
 
 	return wantedEntries
+}
+
+func (db *DB) ICNR(key string) int64 {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	val, ok := db.Data[key]
+	if !ok {
+		return 0
+	}
+
+	intVal, _ := strconv.ParseInt(val.Value, 10, 64)
+	val.Value = strconv.Itoa(int(intVal + 1))
+	return intVal + 1
 }
