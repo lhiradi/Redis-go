@@ -140,7 +140,7 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 			IDs := args[(len(args)+streamsIndex+1)/2:]
 
 			var builder strings.Builder
-			// builder.WriteString(fmt.Sprintf("*%d\r\n", len(keys)))
+			builder.WriteString(fmt.Sprintf("*%d\r\n", len(keys)))
 
 			for i, key := range keys {
 				ID := IDs[i]
