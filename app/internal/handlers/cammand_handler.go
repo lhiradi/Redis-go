@@ -213,6 +213,7 @@ func handleINCR(conn net.Conn, args []string, DB *db.DB) {
 	value := DB.INCR(key)
 	if value == -1 {
 		writeError(conn, fmt.Errorf(" value is not an integer or out of range"))
+		return
 	}
 	response := fmt.Sprintf(":%d\r\n", value)
 	conn.Write([]byte(response))
