@@ -28,7 +28,7 @@ var commandHandlers = map[string]CmdHandler{
 }
 
 func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
-	response, tx, err := handleXRead(conn, args, DB, activeTx)
+	response, tx, err := handleXRead(args, DB, activeTx)
 	if err != nil {
 		writeError(conn, err)
 		return tx, nil

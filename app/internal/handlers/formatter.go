@@ -25,11 +25,15 @@ func formatStreamEntries(entries []db.StreamEntry) string {
 	return builder.String()
 }
 
-func formatXReadEntries(streamKey string, entries []db.StreamEntry) string {
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("*%d\r\n", 2)) // Array of two elements: stream key and entries
-	builder.WriteString(fmt.Sprintf("$%d\r\n%s\r\n", len(streamKey), streamKey))
-	builder.WriteString(formatStreamEntries(entries))
 
+// New function to format the full XREAD response
+func formatXReadResponse(allEntries []db.StreamReadEntry) string {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("*%d\r\n", len(allEntries)))
+
+	for _, streamEntry := range allEntries {
+		builder.WriteString(fmt.Sprintf("*2\r\n$%d\r\n%s\r\n", len(streamEntry.Key), streamEntry.Key))
+		builder.WriteString(formatStreamEntries(streamEntry.Entries))
+	}
 	return builder.String()
 }

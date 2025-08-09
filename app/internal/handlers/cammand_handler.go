@@ -137,7 +137,7 @@ func handleXRange(args []string, DB *db.DB, activeTx *transaction.Transaction) (
 	return response, nil, nil
 }
 
-func handleXRead(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+func handleXRead(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("XREAD", args[1:])
 		return "+QUEUED\r\n", activeTx, nil
@@ -215,14 +215,9 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.
 		return "$-1\r\n", nil, nil
 	}
 
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("*%d\r\n", len(allEntries)))
-
-	for _, streamEntry := range allEntries {
-		builder.WriteString(fmt.Sprintf("*2\r\n$%d\r\n%s\r\n", len(streamEntry.Key), streamEntry.Key))
-		builder.WriteString(formatStreamEntries(streamEntry.Entries))
-	}
-	return builder.String(), nil, nil
+	// The original code has been replaced with a call to the new function
+	response := formatXReadResponse(allEntries)
+	return response, nil, nil
 }
 
 func handleINCR(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
