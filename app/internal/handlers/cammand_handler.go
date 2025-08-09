@@ -121,7 +121,7 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB) {
 		return
 	}
 
-	var blockTimeout int64 = -1 // Use -1 to indicate no BLOCK keyword
+	var blockTimeout int64 = -1
 	streamsIndex := -1
 
 	for i, arg := range args {
@@ -171,17 +171,13 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB) {
 			break
 		}
 
-		// Correct logic for handling BLOCK 0
-		if blockTimeout == 0 {
-			break
-		}
-
-		// If no BLOCK keyword is present, break after the first check
+		// If the BLOCK keyword is not present, break after the first check
 		if blockTimeout == -1 {
 			break
 		}
 
-		if time.Since(start) >= time.Duration(blockTimeout)*time.Millisecond {
+		// The loop will continue indefinitely if blockTimeout is 0
+		if blockTimeout > 0 && time.Since(start) >= time.Duration(blockTimeout)*time.Millisecond {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
