@@ -280,11 +280,14 @@ func handleDiscard(activeTx *transaction.Transaction) (string, *transaction.Tran
 
 	return "+OK\r\n", nil, nil
 }
+
 func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	var builder strings.Builder
-	
-	// builder.WriteString(fmt.Sprintf("$%d\r\nrole:%s\r\n", len(DB.Role)+5, DB.Role))
-	builder.WriteString(fmt.Sprintf("$%d\r\nmaster_replid:%s\r\n", len(DB.ID)+14, DB.ID))
-	builder.WriteString(fmt.Sprintf("$%d\r\nmaster_repl_offset:%d\r\n", 20, 0))
-	return builder.String(), nil, nil
+
+	builder.WriteString(fmt.Sprintf("role:%s\r\n", DB.Role))
+	builder.WriteString(fmt.Sprintf("master_replid:%s\r\n", DB.ID))
+	builder.WriteString(fmt.Sprintf("master_repl_offset:%d\r\n", DB.Offset))
+
+	response := builder.String()
+	return fmt.Sprintf("$%d\r\n%s", len(response), response), nil, nil
 }
