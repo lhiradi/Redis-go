@@ -170,7 +170,10 @@ func (db *DB) INCR(key string) int64 {
 		return int64(1)
 	}
 
-	intVal, _ := strconv.ParseInt(val.Value, 10, 64)
+	intVal, err := strconv.ParseInt(val.Value, 10, 64)
+	if err != nil {
+		return -1
+	}
 	val.Value = strconv.Itoa(int(intVal + 1))
 	db.Data[key] = val
 	return intVal + 1
