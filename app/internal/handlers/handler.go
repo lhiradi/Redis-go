@@ -120,28 +120,38 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 
 		case "XREAD":
 			if len(args) < 4 {
-				conn.Write([]byte("-ERR wrong number of arguments for 'XRANGE' command\r\n"))
+				conn.Write([]byte("-ERR wrong number of arguments for 'XREAD' command\r\n"))
 				continue
-			} else if len(args) > 4 && len(args)%2 == 0 {
-				response := ""
-				for i := 2; i < 4; i++ {
-					key := args[i]
-					ID := args[i+2]
-					entries := DB.XREAD(key, ID)
-					response += formatXReadEntries(key, entries) + "\n"
-				}
-				conn.Write([]byte(response))
-			} else {
-				key := args[2]
-				ID := args[3]
-				entries := DB.XREAD(key, ID)
-				response := formatXReadEntries(key, entries)
-				conn.Write([]byte(response))
 			}
+			streamsIndex := -1
+			for i, arg := range args {
+				if strings.ToUpper(arg) == "STREAMS" {
+					streamsIndex = i
+					break
+				}
+			}
+
+			if streamsIndex == -1 || len(args) <= streamsIndex+2 {
+				conn.Write([]byte("-ERR wrong number of arguments for 'XREAD' command\r\n"))
+				continue
+			}
+
+			keys := args[streamsIndex+1 : (len(args)+streamsIndex)/2]
+			IDs := args[(len(args)+streamsIndex)/2:]
+
+			var builder strings.Builder
+			builder.WriteString(fmt.Sprintf("*%d\r\n", len(keys)))
+
+			for i, key := range keys {
+				ID := IDs[i]
+				entries := DB.XREAD(key, ID)
+				builder.WriteString(formatXReadEntries(key, entries))
+			}
+			conn.Write([]byte(builder.String()))
+
 		default:
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
 		}
-
 	}
 }
