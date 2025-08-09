@@ -22,7 +22,7 @@ var commandHandlers = map[string]CmdHandler{
 	"XADD":   handleXAdd,
 	"XRANGE": handleXRange,
 	"XREAD":  handleXRead,
-	"ICNR":   handleICNR,
+	"INCR":   handleINCR,
 }
 
 func HandleConnection(conn net.Conn, DB *db.DB) {

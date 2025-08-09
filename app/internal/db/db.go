@@ -160,7 +160,7 @@ func (db *DB) XREAD(key, ID string) []StreamEntry {
 	return wantedEntries
 }
 
-func (db *DB) ICNR(key string) int64 {
+func (db *DB) INCR(key string) int64 {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
