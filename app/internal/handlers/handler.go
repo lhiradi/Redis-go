@@ -118,6 +118,17 @@ func HandleConnection(conn net.Conn, db *db.DB) {
 			response := formatStreamEntries(entries)
 			conn.Write([]byte(response))
 
+		case "XREAD":
+			if len(args) < 4 {
+				conn.Write([]byte("-ERR wrong number of arguments for 'XRANGE' command\r\n"))
+				continue
+			}
+			key := args[2]
+			ID := args[3]
+			entries := db.XREAD(key, ID)
+			response := formatXReadEntries(key, entries)
+			conn.Write([]byte(response))
+
 		default:
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))

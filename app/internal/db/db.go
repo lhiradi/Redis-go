@@ -125,3 +125,21 @@ func (db *DB) XRange(key, start, end string) []StreamEntry {
 
 	return wantedEntries
 }
+
+func (db *DB) XREAD(key, ID string) []StreamEntry {
+	entries, ok := db.Streams[key]
+	if !ok {
+		return nil
+	}
+	IDMs, IDSeq := utils.ParsID(ID)
+	var wantedEntries []StreamEntry
+
+	for _, entry := range entries {
+		entryMs, entrySeq := utils.ParsID(entry.ID)
+		if utils.CompareIDs(entryMs, entrySeq, IDMs, IDSeq) > 0 {
+			wantedEntries = append(wantedEntries, entry)
+		}
+	}
+
+	return wantedEntries
+}
