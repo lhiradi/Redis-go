@@ -25,6 +25,22 @@ func Start(port, replicaof string) {
 	}
 	db := db.New(role)
 
+	if role == "slave" {
+		masterAddr := replicaof
+		fmt.Printf("Connecting to master at %s...\n", masterAddr)
+
+		conn, err := net.Dial("tcp", masterAddr)
+		if err != nil {
+			fmt.Println("Failed to connect to master:", err.Error())
+			os.Exit(1)
+		}
+		defer conn.Close()
+
+		if err := handlers.HandshakeWithMaster(conn); err != nil {
+			fmt.Println("Handshake with master failed:", err.Error())
+			os.Exit(1)
+		}
+	}
 	for {
 		conn, err := l.Accept()
 		if err != nil {

@@ -284,14 +284,11 @@ func handleDiscard(activeTx *transaction.Transaction) (string, *transaction.Tran
 func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	var infoBuilder strings.Builder
 
-	// Concatenate all parts of the response into a single string.
 	infoBuilder.WriteString(fmt.Sprintf("role:%s\r\n", DB.Role))
 	infoBuilder.WriteString(fmt.Sprintf("master_replid:%s\r\n", DB.ID))
 	infoBuilder.WriteString(fmt.Sprintf("master_repl_offset:%d\r\n", DB.Offset))
 
-	// Get the final concatenated string.
 	infoString := infoBuilder.String()
 
-	// Return the single string as a RESP bulk string with the correct total length.
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(infoString), infoString), nil, nil
 }
