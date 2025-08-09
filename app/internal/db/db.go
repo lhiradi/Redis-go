@@ -161,8 +161,8 @@ func (db *DB) XREAD(key, ID string) []StreamEntry {
 }
 
 func (db *DB) ICNR(key string) int64 {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	db.mu.Lock()
+	defer db.mu.Unlock()
 
 	val, ok := db.Data[key]
 	if !ok {
