@@ -15,6 +15,8 @@ type DB struct {
 	Streams map[string][]StreamEntry
 	mu      sync.RWMutex
 	Role    string
+	ID      string
+	Offset  int
 }
 
 type StreamEntry struct {
@@ -37,6 +39,8 @@ func New(role string) *DB {
 		Data:    make(map[string]cacheValue),
 		Streams: make(map[string][]StreamEntry),
 		Role:    role,
+		ID:      utils.GenerateReplicaID(),
+		Offset:  0,
 	}
 }
 
