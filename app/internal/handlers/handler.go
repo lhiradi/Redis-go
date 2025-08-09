@@ -25,6 +25,7 @@ var commandHandlers = map[string]CmdHandler{
 	"XRANGE": handleXRange,
 	"INCR":   handleINCR,
 	"MULTI":  handleMulti,
+	"INFO":   handleInfo,
 }
 
 func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
@@ -85,7 +86,7 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 			// XREAD needs direct access to conn for blocking, so it's handled as a special case.
 			activeTx, _ = handleXReadWrapper(conn, args, DB, activeTx)
 		} else if command == "DISCARD" {
-			response, newTx, err := handleDiscard(args, DB, activeTx)
+			response, newTx, err := handleDiscard(activeTx)
 			activeTx = newTx
 			if err != nil {
 				writeError(conn, err)

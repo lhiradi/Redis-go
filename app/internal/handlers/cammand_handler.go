@@ -273,10 +273,13 @@ func handleExec(args []string, DB *db.DB, activeTx *transaction.Transaction, com
 	return builder.String(), nil, nil
 }
 
-func handleDiscard(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+func handleDiscard(activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx == nil {
 		return "", nil, fmt.Errorf(" DISCARD without MULTI")
 	}
-	
+
 	return "+OK\r\n", nil, nil
+}
+func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	return "$11\r\nrole:master\r\n", nil, nil
 }
