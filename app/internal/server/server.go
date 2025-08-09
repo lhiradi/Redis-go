@@ -28,6 +28,9 @@ func Start(port, replicaof string) {
 
 	if role == "slave" {
 		masterAddr := utils.ParsReplicaOf(replicaof)
+		if masterAddr == "" {
+			return
+		}
 		fmt.Printf("Connecting to master at %s...\n", masterAddr)
 
 		conn, err := net.Dial("tcp", masterAddr)

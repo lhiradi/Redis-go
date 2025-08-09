@@ -71,5 +71,9 @@ func ParsID(id string) (int64, int64) {
 }
 
 func ParsReplicaOf(replicaOf string) string {
-	return strings.Split(replicaOf, " ")[1]
+	parts := strings.Split(replicaOf, " ")
+	if len(parts) != 2 {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s", parts[0], parts[1])
 }
