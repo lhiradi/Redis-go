@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -105,8 +106,13 @@ func (db *DB) XRange(key, start, end string) []StreamEntry {
 	}
 
 	startMs, startSeq := utils.ParsID(start) // (if start == "-"") strings.split will split it into 0,0
-	endMs, endSeq := utils.ParsID(end)
-
+	var endMs, endSeq int64
+	if end == "+" {
+		endMs = math.MaxInt64
+		endSeq = math.MaxInt64
+	} else {
+		endMs, endSeq = utils.ParsID(end)
+	}
 	var wantedEntries []StreamEntry
 
 	for _, entry := range entries {
