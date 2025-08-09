@@ -69,3 +69,7 @@ func ParsID(id string) (int64, int64) {
 	seq, _ := strconv.ParseInt(parts[1], 10, 64)
 	return ms, seq
 }
+
+func ParsReplicaOf(replicaOf string) string {
+	return strings.Split(replicaOf, " ")[1]
+}
