@@ -37,6 +37,16 @@ func New() *DB {
 	}
 }
 
+func (db *DB) GetLastID(key string) string {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	if stream, ok := db.Streams[key]; ok && len(stream) > 0 {
+		return stream[len(stream)-1].ID
+	}
+	return "0-0"
+}
+
 func (db *DB) Get(key string) (string, bool) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()

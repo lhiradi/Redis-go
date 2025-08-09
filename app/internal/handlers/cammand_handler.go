@@ -151,6 +151,14 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB) {
 	keys := args[streamsIndex+1 : streamsIndex+1+numStreams]
 	IDs := args[streamsIndex+1+numStreams:]
 
+	// Resolve the '$' ID to the last ID of each stream before the blocking loop
+	for i, ID := range IDs {
+		if ID == "$" {
+			lastID := DB.GetLastID(keys[i])
+			IDs[i] = lastID
+		}
+	}
+
 	var allEntries []db.StreamReadEntry
 	var hasNewEntries bool = false
 	start := time.Now()
@@ -171,12 +179,10 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB) {
 			break
 		}
 
-		// If the BLOCK keyword is not present, break after the first check
 		if blockTimeout == -1 {
 			break
 		}
 
-		// The loop will continue indefinitely if blockTimeout is 0
 		if blockTimeout > 0 && time.Since(start) >= time.Duration(blockTimeout)*time.Millisecond {
 			break
 		}
