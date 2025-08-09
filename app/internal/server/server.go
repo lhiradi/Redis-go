@@ -7,6 +7,7 @@ import (
 
 	"github.com/codecrafters-io/redis-starter-go/app/internal/db"
 	"github.com/codecrafters-io/redis-starter-go/app/internal/handlers"
+	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
 func Start(port, replicaof string) {
@@ -26,7 +27,7 @@ func Start(port, replicaof string) {
 	db := db.New(role)
 
 	if role == "slave" {
-		masterAddr := replicaof
+		masterAddr := utils.ParsReplicaOf(replicaof)
 		fmt.Printf("Connecting to master at %s...\n", masterAddr)
 
 		conn, err := net.Dial("tcp", masterAddr)
