@@ -116,7 +116,7 @@ func (db *DB) XRange(key, start, end string) []StreamEntry {
 		entry := entries[i]
 		entryIDMs, _ := strconv.ParseInt(strings.Split(entry.ID, "-")[0], 10, 64)
 		entryIDSeq, _ := strconv.ParseInt(strings.Split(entry.ID, "-")[1], 10, 63)
-		if entryIDMs >= startIDMs || entryIDMs <= endIDMs && (entryIDSeq >= startIDSeq || entryIDSeq <= endIDSeq) {
+		if (entryIDMs >= startIDMs || entryIDMs <= endIDMs) && (entryIDSeq >= startIDSeq || entryIDSeq <= endIDSeq) {
 			wantedEntries = append(wantedEntries, entry)
 		} else {
 			continue
