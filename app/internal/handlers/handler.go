@@ -112,8 +112,8 @@ func HandleConnection(conn net.Conn, db *db.DB) {
 				continue
 			}
 			key := args[1]
-			start, _ := strconv.ParseInt(args[2], 10, 64)
-			end, _ := strconv.ParseInt(args[3], 10, 64)
+			start := args[2]
+			end := args[3]
 			entries := db.XRange(key, start, end)
 			response := formatStreamEntries(entries)
 			conn.Write([]byte(response))

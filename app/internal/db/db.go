@@ -100,18 +100,23 @@ func (db *DB) XAdd(key, ID string, fields map[string]string) (string, error) {
 	return finalID, nil
 }
 
-func (db *DB) XRange(key string, start, end int64) []StreamEntry {
+func (db *DB) XRange(key, start, end string) []StreamEntry {
 	var wantedEntries []StreamEntry
 	entries, ok := db.Streams[key]
 	if !ok {
 		return nil
 	}
 
+	startIDMs, _ := strconv.ParseInt(strings.Split(start, "-")[0], 10, 64)
+	startIDSeq, _ := strconv.ParseInt(strings.Split(start, "-")[1], 10, 64)
+	endIDMs, _ := strconv.ParseInt(strings.Split(end, "-")[0], 10, 64)
+	endIDSeq, _ := strconv.ParseInt(strings.Split(end, "-")[1], 10, 64)
+
 	for i := range entries {
 		entry := entries[i]
-		entryIDMs := strings.Split(entry.ID, "-")[0]
-		intEntryIDMs, _ := strconv.ParseInt(entryIDMs, 10, 64)
-		if intEntryIDMs >= start || intEntryIDMs <= end {
+		entryIDMs, _ := strconv.ParseInt(strings.Split(entry.ID, "-")[0], 10, 64)
+		entryIDSeq, _ := strconv.ParseInt(strings.Split(entry.ID, "-")[1], 10, 63)
+		if entryIDMs >= startIDMs || entryIDMs <= endIDMs && (entryIDSeq >= startIDSeq || entryIDSeq <= endIDSeq) {
 			wantedEntries = append(wantedEntries, entry)
 		} else {
 			continue
