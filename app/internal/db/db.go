@@ -20,6 +20,11 @@ type StreamEntry struct {
 	Fields map[string]string
 }
 
+type StreamReadEntry struct {
+	Key     string
+	Entries []StreamEntry
+}
+
 type cacheValue struct {
 	Value string
 	Ttl   int64

@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/app/internal/db"
 )
@@ -119,9 +120,23 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB) {
 		conn.Write([]byte("-ERR wrong number of arguments for 'XREAD' command\r\n"))
 		return
 	}
+
+	var blockTimeout int64 = 0
 	streamsIndex := -1
+
 	for i, arg := range args {
-		if strings.ToUpper(arg) == "STREAMS" {
+		if strings.ToUpper(arg) == "BLOCK" {
+			if i+1 >= len(args) {
+				conn.Write([]byte("-ERR BLOCK requires a timeout\r\n"))
+				return
+			}
+			var err error
+			blockTimeout, err = strconv.ParseInt(args[i+1], 10, 64)
+			if err != nil {
+				conn.Write([]byte("-ERR timeout is not an integer or out of range of 64-bit integer\r\n"))
+				return
+			}
+		} else if strings.ToUpper(arg) == "STREAMS" {
 			streamsIndex = i
 			break
 		}
@@ -132,17 +147,47 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB) {
 		return
 	}
 
-	keys := args[streamsIndex+1 : (len(args)+streamsIndex+1)/2]
-	IDs := args[(len(args)+streamsIndex+1)/2:]
+	numStreams := (len(args) - (streamsIndex + 1)) / 2
+	keys := args[streamsIndex+1 : streamsIndex+1+numStreams]
+	IDs := args[streamsIndex+1+numStreams:]
+
+	var allEntries []db.StreamReadEntry
+	var hasNewEntries bool = false
+	start := time.Now()
+
+	for {
+		allEntries = []db.StreamReadEntry{}
+		hasNewEntries = false
+		for i, key := range keys {
+			ID := IDs[i]
+			entries := DB.XREAD(key, ID)
+			if len(entries) > 0 {
+				allEntries = append(allEntries, db.StreamReadEntry{Key: key, Entries: entries})
+				hasNewEntries = true
+			}
+		}
+
+		if hasNewEntries {
+			break
+		}
+
+		if blockTimeout == 0 || time.Since(start) >= time.Duration(blockTimeout)*time.Millisecond {
+			break
+		}
+		time.Sleep(10 * time.Millisecond) // Poll every 10ms
+	}
+
+	if !hasNewEntries {
+		conn.Write([]byte("$-1\r\n"))
+		return
+	}
 
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("*%d\r\n", len(keys)))
+	builder.WriteString(fmt.Sprintf("*%d\r\n", len(allEntries)))
 
-	for i, key := range keys {
-		ID := IDs[i]
-		entries := DB.XREAD(key, ID)
-		builder.WriteString(formatXReadEntries(key, entries))
+	for _, streamEntry := range allEntries {
+		builder.WriteString(fmt.Sprintf("*2\r\n$%d\r\n%s\r\n", len(streamEntry.Key), streamEntry.Key))
+		builder.WriteString(formatStreamEntries(streamEntry.Entries))
 	}
 	conn.Write([]byte(builder.String()))
-
 }
