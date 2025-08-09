@@ -27,9 +27,9 @@ func formatStreamEntries(entries []db.StreamEntry) string {
 
 func formatXReadEntries(streamKey string, entries []db.StreamEntry) string {
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("*%d\r\n", 1))
-	builder.WriteString(fmt.Sprintf("*%d\r\n", len(entries)+1)) // entries + streamKey
+	builder.WriteString(fmt.Sprintf("*%d\r\n", 1)) // entries + streamKey
 	builder.WriteString(fmt.Sprintf("$%d\r\n%s\r\n", len(streamKey), streamKey))
+	builder.WriteString(fmt.Sprintf("*%d\r\n", len(entries)))
 	for _, entry := range entries {
 		// Array for each entry: [ID, [field1, value1, field2, value2]]
 		builder.WriteString(fmt.Sprintf("*2\r\n$%d\r\n%s\r\n", len(entry.ID), entry.ID))
