@@ -171,10 +171,10 @@ func handleXRead(conn net.Conn, args []string, DB *db.DB) {
 			break
 		}
 
-		if blockTimeout == 0 || time.Since(start) >= time.Duration(blockTimeout)*time.Millisecond {
+		if time.Since(start) >= time.Duration(blockTimeout)*time.Millisecond {
 			break
 		}
-		time.Sleep(10 * time.Millisecond) // Poll every 10ms
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	if !hasNewEntries {
