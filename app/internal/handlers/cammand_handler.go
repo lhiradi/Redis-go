@@ -53,7 +53,7 @@ func handleSet(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Tr
 		return activeTx, nil
 	}
 	if len(args) < 3 {
-		return nil, fmt.Errorf("wrong number of arguments for 'SET' command")
+		return nil, fmt.Errorf(" wrong number of arguments for 'SET' command")
 	}
 	key := args[1]
 	value := args[2]
@@ -62,7 +62,7 @@ func handleSet(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Tr
 		var err error
 		ttlMs, err = strconv.ParseInt(args[4], 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("invalid PX argument")
+			return nil, fmt.Errorf(" invalid PX argument")
 		}
 	}
 
@@ -78,7 +78,7 @@ func handleGet(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Tr
 		return activeTx, nil
 	}
 	if len(args) < 2 {
-		return nil, fmt.Errorf("wrong number of arguments for 'GET' command")
+		return nil, fmt.Errorf(" wrong number of arguments for 'GET' command")
 	}
 
 	key := args[1]
@@ -98,7 +98,7 @@ func handleType(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.T
 		return activeTx, nil
 	}
 	if len(args) < 2 {
-		return nil, fmt.Errorf("wrong number of arguments for 'GET' command")
+		return nil, fmt.Errorf(" wrong number of arguments for 'GET' command")
 	}
 	key := args[1]
 	keyType := DB.GetType(key)
@@ -114,7 +114,7 @@ func handleXAdd(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.T
 		return activeTx, nil
 	}
 	if len(args) < 5 || len(args)%2 != 1 {
-		return nil, fmt.Errorf("wrong number of arguments for 'XADD' command")
+		return nil, fmt.Errorf(" wrong number of arguments for 'XADD' command")
 	}
 	key := args[1]
 	id := args[2]
@@ -140,7 +140,7 @@ func handleXRange(conn net.Conn, args []string, DB *db.DB, activeTx *transaction
 		return activeTx, nil
 	}
 	if len(args) < 4 {
-		return nil, fmt.Errorf("wrong number of arguments for 'XRANGE' command")
+		return nil, fmt.Errorf(" wrong number of arguments for 'XRANGE' command")
 	}
 	key := args[1]
 	start := args[2]
@@ -253,12 +253,12 @@ func handleINCR(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.T
 		return activeTx, nil
 	}
 	if len(args) < 2 {
-		return nil, fmt.Errorf("wrong number of arguments for 'ICNR' command")
+		return nil, fmt.Errorf(" wrong number of arguments for 'ICNR' command")
 	}
 	key := args[1]
 	value := DB.INCR(key)
 	if value == -1 {
-		return nil, fmt.Errorf("value is not an integer or out of range")
+		return nil, fmt.Errorf(" value is not an integer or out of range")
 	}
 	response := fmt.Sprintf(":%d\r\n", value)
 	conn.Write([]byte(response))
@@ -267,7 +267,7 @@ func handleINCR(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.T
 
 func handleMulti(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
 	if activeTx != nil {
-		return activeTx, fmt.Errorf("MULTI is already active")
+		return activeTx, fmt.Errorf(" MULTI is already active")
 	}
 	conn.Write([]byte("+OK\r\n"))
 	return transaction.NewTransaction(), nil
@@ -275,7 +275,7 @@ func handleMulti(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.
 
 func handleExec(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
 	if activeTx == nil {
-		return nil, fmt.Errorf("EXEC without MULTI")
+		return nil, fmt.Errorf(" EXEC without MULTI")
 	}
 
 	if len(activeTx.Commands) == 0 {
