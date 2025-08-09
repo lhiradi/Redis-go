@@ -166,7 +166,7 @@ func (db *DB) INCR(key string) int64 {
 
 	val, ok := db.Data[key]
 	if !ok {
-		db.Set(key, "1", 0)
+		db.Data[key] = cacheValue{Value: "1", Ttl: 0}
 		return int64(1)
 	}
 
