@@ -25,9 +25,3 @@ func (t *Transaction) AddCommand(name string, args []string) {
 		Args: args,
 	})
 }
-
-func (t *Transaction) Execute(command CommandQueue) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return nil
-}

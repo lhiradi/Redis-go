@@ -215,7 +215,6 @@ func handleXRead(args []string, DB *db.DB, activeTx *transaction.Transaction) (s
 		return "$-1\r\n", nil, nil
 	}
 
-	// The original code has been replaced with a call to the new function
 	response := formatXReadResponse(allEntries)
 	return response, nil, nil
 }

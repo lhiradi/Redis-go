@@ -26,7 +26,6 @@ func formatStreamEntries(entries []db.StreamEntry) string {
 }
 
 
-// New function to format the full XREAD response
 func formatXReadResponse(allEntries []db.StreamReadEntry) string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("*%d\r\n", len(allEntries)))
