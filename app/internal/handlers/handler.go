@@ -16,16 +16,15 @@ type CmdHandler func(args []string, DB *db.DB, activeTx *transaction.Transaction
 
 // Map command strings to handler functions, updated for the new signature.
 var commandHandlers = map[string]CmdHandler{
-	"PING":    handlePing,
-	"ECHO":    handleEcho,
-	"SET":     handleSet,
-	"GET":     handleGet,
-	"TYPE":    handleType,
-	"XADD":    handleXAdd,
-	"XRANGE":  handleXRange,
-	"INCR":    handleINCR,
-	"MULTI":   handleMulti,
-	"DISCARD": handleDiscard,
+	"PING":   handlePing,
+	"ECHO":   handleEcho,
+	"SET":    handleSet,
+	"GET":    handleGet,
+	"TYPE":   handleType,
+	"XADD":   handleXAdd,
+	"XRANGE": handleXRange,
+	"INCR":   handleINCR,
+	"MULTI":  handleMulti,
 }
 
 func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
@@ -85,6 +84,13 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 		} else if command == "XREAD" {
 			// XREAD needs direct access to conn for blocking, so it's handled as a special case.
 			activeTx, _ = handleXReadWrapper(conn, args, DB, activeTx)
+		} else if command == "DISCARD" {
+			response, newTx, err := handleDiscard(args, DB, activeTx)
+			activeTx = newTx
+			if err != nil {
+				writeError(conn, err)
+			}
+			conn.Write([]byte(response))
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))

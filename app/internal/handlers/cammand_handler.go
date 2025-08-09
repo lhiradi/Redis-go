@@ -277,6 +277,6 @@ func handleDiscard(args []string, DB *db.DB, activeTx *transaction.Transaction) 
 	if activeTx == nil {
 		return "", nil, fmt.Errorf(" DISCARD without MULTI")
 	}
-
+	
 	return "+OK\r\n", nil, nil
 }
