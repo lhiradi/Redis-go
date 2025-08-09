@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	"github.com/codecrafters-io/redis-starter-go/app/internal/db"
+	"github.com/codecrafters-io/redis-starter-go/app/internal/transaction"
 	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
-type CmdHandler func(conn net.Conn, args []string, DB *db.DB)
+// CmdHandler now takes a transaction object and returns the potentially updated transaction and an error.
+type CmdHandler func(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error)
 
-// Map command strings to handler functions
+// Map command strings to handler functions, updated for the new signature.
 var commandHandlers = map[string]CmdHandler{
 	"PING":   handlePing,
 	"ECHO":   handleEcho,
@@ -30,6 +32,7 @@ var commandHandlers = map[string]CmdHandler{
 func HandleConnection(conn net.Conn, DB *db.DB) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
+	var activeTx *transaction.Transaction
 
 	for {
 		args := utils.ParseArgs(reader)
@@ -44,7 +47,12 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 		command := strings.ToUpper(args[0])
 
 		if handler, ok := commandHandlers[command]; ok {
-			handler(conn, args, DB)
+			var err error
+			// Pass the current transaction state and update it with the return value
+			activeTx, err = handler(conn, args, DB, activeTx)
+			if err != nil {
+				writeError(conn, err)
+			}
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
