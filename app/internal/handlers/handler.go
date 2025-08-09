@@ -113,6 +113,9 @@ func HandleConnection(conn net.Conn, db *db.DB) {
 			}
 			key := args[1]
 			start := args[2]
+			if start == "-" {
+				start = "0-0"
+			}
 			end := args[3]
 			entries := db.XRange(key, start, end)
 			response := formatStreamEntries(entries)
