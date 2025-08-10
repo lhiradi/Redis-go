@@ -41,6 +41,7 @@ func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *trans
 
 func HandleConnection(conn net.Conn, DB *db.DB) {
 	defer conn.Close()
+	defer DB.RemoveReplica(conn) // Ensure replica is removed on connection close
 	reader := bufio.NewReader(conn)
 	var activeTx *transaction.Transaction
 

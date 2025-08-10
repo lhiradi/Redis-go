@@ -62,6 +62,9 @@ func handleSet(args []string, DB *db.DB, activeTx *transaction.Transaction) (str
 	}
 
 	DB.Set(key, value, ttlMs)
+	if DB.Role == "master" {
+		DB.PropagateCommand(args)
+	}
 	return "+OK\r\n", nil, nil
 }
 
@@ -116,6 +119,9 @@ func handleXAdd(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	outPutID, err := DB.XAdd(key, id, fields)
 	if err != nil {
 		return "", nil, err
+	}
+	if DB.Role == "master" {
+		DB.PropagateCommand(args)
 	}
 	response := fmt.Sprintf("$%d\r\n%s\r\n", len(outPutID), outPutID)
 	return response, nil, nil
@@ -231,6 +237,9 @@ func handleINCR(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	value := DB.INCR(key)
 	if value == -1 {
 		return "", nil, fmt.Errorf(" value is not an integer or out of range")
+	}
+	if DB.Role == "master" {
+		DB.PropagateCommand(args)
 	}
 	response := fmt.Sprintf(":%d\r\n", value)
 	return response, nil, nil

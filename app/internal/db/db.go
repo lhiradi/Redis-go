@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"math"
+	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -11,12 +12,14 @@ import (
 )
 
 type DB struct {
-	Data    map[string]cacheValue
-	Streams map[string][]StreamEntry
-	mu      sync.RWMutex
-	Role    string
-	ID      string
-	Offset  int
+	Data      map[string]cacheValue
+	Streams   map[string][]StreamEntry
+	mu        sync.RWMutex
+	Role      string
+	ID        string
+	Offset    int
+	Replicas  []net.Conn
+	ReplicaMu sync.RWMutex
 }
 
 type StreamEntry struct {
@@ -41,6 +44,40 @@ func New(role string) *DB {
 		Role:    role,
 		ID:      utils.GenerateReplicaID(),
 		Offset:  0,
+	}
+}
+
+func (db *DB) AddReplica(conn net.Conn) {
+	db.ReplicaMu.Lock()
+	defer db.ReplicaMu.Unlock()
+
+	db.Replicas = append(db.Replicas, conn)
+	fmt.Printf("Added replica connection. Total replicas: %d \n", len(db.Replicas))
+}
+
+func (db *DB) RemoveReplica(conn net.Conn) {
+	db.ReplicaMu.Lock()
+	defer db.ReplicaMu.Unlock()
+	for i, c := range db.Replicas {
+		if c == conn {
+			db.Replicas = append(db.Replicas[:i], db.Replicas[i+1:]...)
+			break
+		}
+	}
+}
+
+func (db *DB) PropagateCommand(args []string) {
+	db.ReplicaMu.RLock()
+	defer db.ReplicaMu.RUnlock()
+
+	respCmd := utils.FormatRESPArray(args)
+
+	for _, conn := range db.Replicas {
+		_, err := conn.Write([]byte(respCmd))
+		if err != nil {
+			fmt.Printf("Failed to propagate command to replica: %v\n", err)
+			continue
+		}
 	}
 }
 

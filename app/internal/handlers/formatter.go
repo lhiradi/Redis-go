@@ -25,7 +25,6 @@ func formatStreamEntries(entries []db.StreamEntry) string {
 	return builder.String()
 }
 
-
 func formatXReadResponse(allEntries []db.StreamReadEntry) string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("*%d\r\n", len(allEntries)))
@@ -36,3 +35,4 @@ func formatXReadResponse(allEntries []db.StreamReadEntry) string {
 	}
 	return builder.String()
 }
+
