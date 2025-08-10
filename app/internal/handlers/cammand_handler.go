@@ -329,14 +329,24 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "", nil, fmt.Errorf("error parsing timeout: %w", err)
 	}
 
+	// Get current number of replicas safely
 	DB.ReplicaMu.RLock()
 	numReplicas := int64(len(DB.Replicas))
+	DB.ReplicaMu.RUnlock()
+
+	// If requested acks is invalid (<=0 or greater than available replicas),
+	// Redis returns the number of replicas currently connected.
 	if requiredAcks <= 0 || requiredAcks > numReplicas {
-		DB.ReplicaMu.RUnlock()
 		response := fmt.Sprintf(":%d\r\n", numReplicas)
 		return response, nil, nil
 	}
-	DB.ReplicaMu.RUnlock()
+
+	// If master offset is zero, there are no new writes to wait for,
+	// so all replicas are already up-to-date. Return the number of replicas.
+	if DB.Offset == 0 {
+		response := fmt.Sprintf(":%d\r\n", numReplicas)
+		return response, nil, nil
+	}
 
 	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
@@ -346,11 +356,9 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	fmt.Printf("WAIT: Sending GETACK to %d replicas\n", replicasToWaitFor) // Debug
 
 	for _, replicaConn := range DB.Replicas {
-
 		_, err := replicaConn.Write([]byte(getAckCommand))
 		if err != nil {
 			fmt.Printf("WAIT: Failed to send GETACK to a replica: %v\n", err)
-
 		}
 	}
 	DB.ReplicaMu.RUnlock()
@@ -359,6 +367,7 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		fmt.Println("WAIT: No replicas to wait for.")
 		return ":0\r\n", nil, nil
 	}
+
 	timeout := time.Duration(timeOutMs) * time.Millisecond
 	timeoutChannel := time.After(timeout)
 	ticker := time.NewTicker(50 * time.Millisecond)
@@ -383,5 +392,4 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 			return response, nil, nil
 		}
 	}
-
 }
