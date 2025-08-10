@@ -23,6 +23,14 @@ func handleReplconf(args []string, DB *db.DB, activeTx *transaction.Transaction)
 		return "+OK\r\n", nil, nil
 	case "CAPA":
 		return "+OK\r\n", nil, nil
+
+	case "GETACK":
+		if args[2] == "*" {
+			response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
+			return response, nil, nil
+		}
+
 	}
+
 	return "-ERR Unrecognized REPLCONF subcommand\r\n", nil, nil
 }
