@@ -27,12 +27,20 @@ func handleReplconf(args []string, DB *db.DB, activeTx *transaction.Transaction)
 		return "+OK\r\n", nil, nil
 
 	case "GETACK":
-		if args[2] == "*" {
-
-			response := utils.FormatRESPArray([]string{"REPLCONF", "ACK", strconv.Itoa(DB.Offset)})
-			return response, nil, nil
+		if len(args) < 3 || args[2] != "*" {
+			return "-ERR REPLCONF GETACK requires '*' as the second argument\r\n", nil, nil
 		}
+		response := utils.FormatRESPArray([]string{"REPLCONF", "ACK", strconv.Itoa(DB.Offset)})
+		return response, nil, nil
 
+	case "ACK":
+		if len(args) < 3 {
+			return "-ERR REPLCONF ACK requires an offset argument\r\n", nil, nil
+		}
+		DB.ReplicaMu.Lock()
+		defer DB.ReplicaMu.Unlock()
+		DB.NumAcksRecieved += 1
+		return "", nil, nil
 	}
 
 	return "-ERR Unrecognized REPLCONF subcommand\r\n", nil, nil

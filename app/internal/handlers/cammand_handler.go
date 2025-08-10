@@ -66,9 +66,7 @@ func handleSet(args []string, DB *db.DB, activeTx *transaction.Transaction) (str
 			return "", nil, fmt.Errorf(" invalid PX argument")
 		}
 	}
-	DB.ReplicaMu.Lock()
-	DB.NumAcksRecieved += 1
-	DB.ReplicaMu.Unlock()
+	
 	DB.Set(key, value, ttlMs)
 	if DB.Role == "master" {
 		DB.PropagateCommand(args)
@@ -361,5 +359,4 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 			return response, nil, nil
 		}
 	}
-
 }
