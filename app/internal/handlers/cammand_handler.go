@@ -313,8 +313,7 @@ func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 
 func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
-		activeTx.AddCommand("WAIT", args[1:])
-		return "+QUEUED\r\n", activeTx, nil
+		return "", activeTx, fmt.Errorf("WAIT command is not supported inside a transaction")
 	}
 	if len(args) < 3 {
 		return "", nil, fmt.Errorf("wrong number of arguments for 'WAIT' command")
@@ -330,13 +329,14 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "", nil, fmt.Errorf("error parsing timeout: %w", err)
 	}
 
-	if requiredAcks == 0 {
-		DB.ReplicaMu.RLock()
-		numReplicas := int64(len(DB.Replicas))
+	DB.ReplicaMu.RLock()
+	numReplicas := int64(len(DB.Replicas))
+	if requiredAcks <= 0 || requiredAcks > numReplicas {
 		DB.ReplicaMu.RUnlock()
 		response := fmt.Sprintf(":%d\r\n", numReplicas)
 		return response, nil, nil
 	}
+	DB.ReplicaMu.RUnlock()
 
 	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
@@ -356,9 +356,9 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	DB.ReplicaMu.RUnlock()
 
 	if replicasToWaitFor == 0 {
+		fmt.Println("WAIT: No replicas to wait for.")
 		return ":0\r\n", nil, nil
 	}
-
 	timeout := time.Duration(timeOutMs) * time.Millisecond
 	timeoutChannel := time.After(timeout)
 	ticker := time.NewTicker(50 * time.Millisecond)
