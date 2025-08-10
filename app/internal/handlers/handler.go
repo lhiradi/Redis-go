@@ -58,6 +58,8 @@ func HandleMasterConnection(conn net.Conn, DB *db.DB) {
 		if handler, ok := commandHandlers[command]; ok {
 			response, _, err := handler(args, DB, activeTx)
 			if err != nil {
+				// Write the error back to the master before continuing.
+				writeError(conn, err)
 				fmt.Printf("Error handling command from master: %v\n", err)
 				continue
 			}
@@ -65,6 +67,8 @@ func HandleMasterConnection(conn net.Conn, DB *db.DB) {
 				conn.Write([]byte(response))
 			}
 		} else {
+			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
+			conn.Write([]byte(errorMsg))
 			fmt.Printf("Unknown command from master: '%s'\n", args[0])
 		}
 	}
