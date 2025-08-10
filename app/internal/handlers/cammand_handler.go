@@ -330,45 +330,58 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "", nil, fmt.Errorf("error parsing timeout: %w", err)
 	}
 
-	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
-
-	DB.ReplicaMu.Lock()
-	replconfCommand := utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"})
-	replicasToWaitFor := 0
-	for _, replica := range DB.Replicas {
-		_, err := replica.Write([]byte(replconfCommand))
-		if err != nil {
-		} else {
-			replicasToWaitFor++
-		}
-	}
-	DB.ReplicaMu.Unlock()
-
 	if requiredAcks == 0 {
-		response := fmt.Sprintf(":%d\r\n", replicasToWaitFor)
+		DB.ReplicaMu.RLock()
+		numReplicas := int64(len(DB.Replicas))
+		DB.ReplicaMu.RUnlock()
+		response := fmt.Sprintf(":%d\r\n", numReplicas)
 		return response, nil, nil
 	}
+
+	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
+
+	DB.ReplicaMu.RLock()
+	replicasToWaitFor := len(DB.Replicas)
+	getAckCommand := utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"})
+	fmt.Printf("WAIT: Sending GETACK to %d replicas\n", replicasToWaitFor) // Debug
+
+	for _, replicaConn := range DB.Replicas {
+
+		_, err := replicaConn.Write([]byte(getAckCommand))
+		if err != nil {
+			fmt.Printf("WAIT: Failed to send GETACK to a replica: %v\n", err)
+
+		}
+	}
+	DB.ReplicaMu.RUnlock()
+
 	if replicasToWaitFor == 0 {
 		return ":0\r\n", nil, nil
 	}
 
 	timeout := time.Duration(timeOutMs) * time.Millisecond
 	timeoutChannel := time.After(timeout)
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
+
+	fmt.Printf("WAIT: Starting wait loop for %d acks, timeout %v\n", requiredAcks, timeout)
 
 	for {
 		select {
 		case <-ticker.C:
 			currentAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
+			fmt.Printf("WAIT: Ticker check - Acks received: %d / %d\n", currentAcks, requiredAcks) // Debug
 			if currentAcks >= requiredAcks {
+				fmt.Printf("WAIT: Condition met: %d >= %d\n", currentAcks, requiredAcks) // Debug
 				response := fmt.Sprintf(":%d\r\n", currentAcks)
 				return response, nil, nil
 			}
 		case <-timeoutChannel:
 			finalAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
+			fmt.Printf("WAIT: Timeout reached. Acks received: %d\n", finalAcks) // Debug
 			response := fmt.Sprintf(":%d\r\n", finalAcks)
 			return response, nil, nil
 		}
 	}
+
 }
