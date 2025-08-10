@@ -329,9 +329,11 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "", nil, fmt.Errorf("error parsing timeout: %w", err)
 	}
 
-	// Get current number of replicas safely
+	// Snapshot replicas count
 	DB.ReplicaMu.RLock()
 	numReplicas := int64(len(DB.Replicas))
+	snapshot := make([]net.Conn, len(DB.Replicas))
+	copy(snapshot, DB.Replicas)
 	DB.ReplicaMu.RUnlock()
 
 	// If requested acks is invalid (<=0 or greater than available replicas),
@@ -348,39 +350,58 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return response, nil, nil
 	}
 
-	// Reset ACK counter
+	// Reset ack counter
 	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
-	// Build GETACK command
-	getAckCommand := utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"})
+	// Build GETACK command once
+	getAckCommand := []byte(utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"}))
 
-	// Send GETACK to all replicas; remove dead ones.
-	DB.ReplicaMu.Lock()
-	replicasToWaitFor := len(DB.Replicas)
-	fmt.Printf("WAIT: Sending GETACK to %d replicas\n", replicasToWaitFor) // Debug
-
-	live := make([]net.Conn, 0, replicasToWaitFor)
-	for i, replicaConn := range DB.Replicas {
-		n, err := replicaConn.Write([]byte(getAckCommand))
+	// Try to send GETACK to all snapshot replicas. Collect any dead conns for removal.
+	var deadConns []net.Conn
+	fmt.Printf("WAIT: Attempting to send GETACK to %d replicas (snapshot)\n", len(snapshot))
+	for i, rc := range snapshot {
+		n, err := rc.Write(getAckCommand)
 		if err != nil {
-			// Remove dead replica from the list and close the connection
-			fmt.Printf("WAIT: Failed to send GETACK to replica %d: %v\n", i, err)
-			_ = replicaConn.Close()
+			fmt.Printf("WAIT: Failed to send GETACK to replica (snapshot idx %d): %v\n", i, err)
+			deadConns = append(deadConns, rc)
 			continue
 		}
-		fmt.Printf("WAIT: Sent %d bytes to replica %d\n", n, i)
-		live = append(live, replicaConn)
+		fmt.Printf("WAIT: Sent %d bytes GETACK to replica (snapshot idx %d)\n", n, i)
 	}
-	// Replace replicas slice with only live connections
-	DB.Replicas = live
-	DB.ReplicaMu.Unlock()
 
+	// If any writes failed, remove those connections from the live DB.Replicas slice.
+	if len(deadConns) > 0 {
+		DB.ReplicaMu.Lock()
+		remaining := make([]net.Conn, 0, len(DB.Replicas))
+		for _, liveConn := range DB.Replicas {
+			shouldRemove := false
+			for _, dead := range deadConns {
+				if liveConn == dead {
+					shouldRemove = true
+					break
+				}
+			}
+			if shouldRemove {
+				_ = liveConn.Close()
+				continue
+			}
+			remaining = append(remaining, liveConn)
+		}
+		DB.Replicas = remaining
+		DB.ReplicaMu.Unlock()
+		fmt.Printf("WAIT: Removed %d dead replicas, %d remain\n", len(deadConns), len(remaining))
+	}
+
+	// If there are no replicas at all after cleanup, return 0 immediately.
+	DB.ReplicaMu.RLock()
+	replicasToWaitFor := len(DB.Replicas)
+	DB.ReplicaMu.RUnlock()
 	if replicasToWaitFor == 0 {
-		fmt.Println("WAIT: No replicas to wait for.")
+		fmt.Println("WAIT: No replicas to wait for (after cleanup).")
 		return ":0\r\n", nil, nil
 	}
 
-	// Wait loop (periodic ticker + timeout). REPLCONF ACK from replicas increments DB.NumAcksRecieved elsewhere.
+	// Wait loop: poll DB.NumAcksRecieved until requiredAcks or timeout
 	timeout := time.Duration(timeOutMs) * time.Millisecond
 	timeoutChannel := time.After(timeout)
 	ticker := time.NewTicker(50 * time.Millisecond)
@@ -392,17 +413,15 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		select {
 		case <-ticker.C:
 			currentAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
-			fmt.Printf("WAIT: Ticker check - Acks received: %d / %d\n", currentAcks, requiredAcks) // Debug
+			fmt.Printf("WAIT: Ticker check - Acks received: %d / %d\n", currentAcks, requiredAcks)
 			if currentAcks >= requiredAcks {
-				fmt.Printf("WAIT: Condition met: %d >= %d\n", currentAcks, requiredAcks) // Debug
-				response := fmt.Sprintf(":%d\r\n", currentAcks)
-				return response, nil, nil
+				fmt.Printf("WAIT: Condition met: %d >= %d\n", currentAcks, requiredAcks)
+				return fmt.Sprintf(":%d\r\n", currentAcks), nil, nil
 			}
 		case <-timeoutChannel:
 			finalAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
-			fmt.Printf("WAIT: Timeout reached. Acks received: %d\n", finalAcks) // Debug
-			response := fmt.Sprintf(":%d\r\n", finalAcks)
-			return response, nil, nil
+			fmt.Printf("WAIT: Timeout reached. Acks received: %d\n", finalAcks)
+			return fmt.Sprintf(":%d\r\n", finalAcks), nil, nil
 		}
 	}
 }
