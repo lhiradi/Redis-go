@@ -27,9 +27,7 @@ func sendAndReceiveOK(conn net.Conn, reader *bufio.Reader, command string) error
 	return nil
 }
 
-func HandshakeWithMaster(conn net.Conn, port string) error {
-	reader := bufio.NewReader(conn)
-
+func HandshakeWithMaster(conn net.Conn, reader *bufio.Reader, port string) error {
 	pingCommand := "*1\r\n$4\r\nPING\r\n"
 	_, err := conn.Write([]byte(pingCommand))
 	if err != nil {

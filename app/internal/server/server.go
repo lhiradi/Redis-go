@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
@@ -38,13 +39,16 @@ func Start(port, replicaof string) {
 			fmt.Println("Failed to connect to master:", err.Error())
 			os.Exit(1)
 		}
+		// Create a single reader for the master connection.
+		reader := bufio.NewReader(conn)
 
-		if err := handlers.HandshakeWithMaster(conn, port); err != nil {
+		// Pass the reader to the handshake function.
+		if err := handlers.HandshakeWithMaster(conn, reader, port); err != nil {
 			fmt.Println("Handshake with master failed:", err.Error())
 			os.Exit(1)
 		}
-
-		go handlers.HandleMasterConnection(conn, db)
+		// Pass the same reader to the connection handler.
+		go handlers.HandleMasterConnection(conn, db, reader)
 	}
 	for {
 		conn, err := l.Accept()

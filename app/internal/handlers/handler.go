@@ -39,8 +39,7 @@ func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *trans
 	return tx, nil
 }
 
-func HandleMasterConnection(conn net.Conn, DB *db.DB) {
-	reader := bufio.NewReader(conn)
+func HandleMasterConnection(conn net.Conn, DB *db.DB, reader *bufio.Reader) {
 	var activeTx *transaction.Transaction
 
 	for {
@@ -58,13 +57,15 @@ func HandleMasterConnection(conn net.Conn, DB *db.DB) {
 		if handler, ok := commandHandlers[command]; ok {
 			respCmdLength := len(utils.FormatRESPArray(args))
 
-			_, _, err := handler(args, DB, activeTx)
+			response, _, err := handler(args, DB, activeTx)
 			if err != nil {
 				writeError(conn, err)
 				fmt.Printf("Error handling command from master: %v\n", err)
 				continue
 			}
-			
+			if response != "" {
+				conn.Write([]byte(response))
+			}
 			DB.UpdateOffset(respCmdLength)
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
