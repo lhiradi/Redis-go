@@ -12,14 +12,15 @@ import (
 )
 
 type DB struct {
-	Data      map[string]cacheValue
-	Streams   map[string][]StreamEntry
-	mu        sync.RWMutex
-	Role      string
-	ID        string
-	Offset    int
-	Replicas  []net.Conn
-	ReplicaMu sync.RWMutex
+	Data            map[string]cacheValue
+	Streams         map[string][]StreamEntry
+	mu              sync.RWMutex
+	Role            string
+	ID              string
+	Offset          int
+	Replicas        []net.Conn
+	ReplicaMu       sync.RWMutex
+	NumAcksRecieved int64
 }
 
 type StreamEntry struct {
@@ -39,11 +40,12 @@ type cacheValue struct {
 
 func New(role string) *DB {
 	return &DB{
-		Data:    make(map[string]cacheValue),
-		Streams: make(map[string][]StreamEntry),
-		Role:    role,
-		ID:      utils.GenerateReplicaID(),
-		Offset:  0,
+		Data:            make(map[string]cacheValue),
+		Streams:         make(map[string][]StreamEntry),
+		Role:            role,
+		ID:              utils.GenerateReplicaID(),
+		Offset:          0,
+		NumAcksRecieved: 0,
 	}
 }
 

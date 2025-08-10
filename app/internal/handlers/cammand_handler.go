@@ -9,6 +9,7 @@ import (
 
 	"github.com/codecrafters-io/redis-starter-go/app/internal/db"
 	"github.com/codecrafters-io/redis-starter-go/app/internal/transaction"
+	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
 func writeError(conn net.Conn, err error) {
@@ -65,7 +66,9 @@ func handleSet(args []string, DB *db.DB, activeTx *transaction.Transaction) (str
 			return "", nil, fmt.Errorf(" invalid PX argument")
 		}
 	}
-
+	DB.ReplicaMu.Lock()
+	DB.NumAcksRecieved += 1
+	DB.ReplicaMu.Unlock()
 	DB.Set(key, value, ttlMs)
 	if DB.Role == "master" {
 		DB.PropagateCommand(args)
@@ -310,6 +313,53 @@ func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 }
 
 func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
-	replicaCount := len(DB.Replicas)
-	return fmt.Sprintf(":%d\r\n", replicaCount), nil, nil
+	if activeTx != nil {
+		activeTx.AddCommand("WAIT", args[1:])
+		return "+QUEUED\r\n", activeTx, nil
+	}
+	if len(args) < 3 {
+		return "", nil, fmt.Errorf(" wrong number of arguments for 'WAIT' command")
+	}
+
+	requiredAcks, err := strconv.ParseInt(args[1], 10, 64)
+	if err != nil {
+		return "", nil, fmt.Errorf("error performing wait: %w", err)
+	}
+
+	timeOutMs, err := strconv.ParseInt(args[2], 10, 64)
+	if err != nil {
+		return "", nil, fmt.Errorf("error performing wait: %w", err)
+	}
+
+	DB.ReplicaMu.Lock()
+	for _, replica := range DB.Replicas {
+		if _, err := replica.Write([]byte(utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"}))); err != nil {
+			fmt.Println("Failed to getack after relaying command to replica", err.Error())
+		}
+	}
+	DB.ReplicaMu.Unlock()
+
+	timeOut := time.Duration(timeOutMs) * time.Millisecond
+	ticker := time.NewTicker(100 * time.Millisecond)
+
+	timeOutChannel := time.After(timeOut)
+	for {
+		select {
+		case <-ticker.C:
+			if DB.NumAcksRecieved >= requiredAcks {
+				response := fmt.Sprintf(":%d\r\n", DB.NumAcksRecieved)
+				DB.ReplicaMu.Lock()
+				DB.NumAcksRecieved = 0
+				DB.ReplicaMu.Unlock()
+				return response, nil, nil
+			}
+		case <-timeOutChannel:
+			response := fmt.Sprintf(":%d\r\n", DB.NumAcksRecieved)
+			DB.ReplicaMu.Lock()
+			DB.NumAcksRecieved = 0
+			DB.ReplicaMu.Unlock()
+			return response, nil, nil
+		}
+	}
+
 }
