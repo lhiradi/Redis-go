@@ -72,7 +72,7 @@ func HandleMasterConnection(conn net.Conn, DB *db.DB) {
 
 func HandleConnection(conn net.Conn, DB *db.DB) {
 	defer conn.Close()
-	defer DB.RemoveReplica(conn) // Ensure replica is removed on connection close
+	defer DB.RemoveReplica(conn)
 	reader := bufio.NewReader(conn)
 	var activeTx *transaction.Transaction
 
