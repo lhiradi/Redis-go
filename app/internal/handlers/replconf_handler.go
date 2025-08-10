@@ -13,7 +13,7 @@ func handleReplconf(args []string, DB *db.DB, activeTx *transaction.Transaction)
 		activeTx.AddCommand("REPLCONF", args[1:])
 		return "+QUEUED\r\n", activeTx, nil
 	}
-	if len(args) < 3 {
+	if len(args) < 2 {
 		return "", nil, fmt.Errorf("wrong number of arguments for 'REPLCONF' command")
 	}
 
