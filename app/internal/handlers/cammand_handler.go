@@ -64,8 +64,9 @@ func handleSet(args []string, DB *db.DB, activeTx *transaction.Transaction) (str
 	DB.Set(key, value, ttlMs)
 	if DB.Role == "master" {
 		DB.PropagateCommand(args)
+		return "+OK\r\n", nil, nil
 	}
-	return "+OK\r\n", nil, nil
+	return "", nil, nil
 }
 
 func handleGet(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
