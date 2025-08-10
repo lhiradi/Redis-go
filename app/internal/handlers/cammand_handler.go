@@ -21,12 +21,17 @@ func handlePing(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		activeTx.AddCommand("PING", args[1:])
 		return "+QUEUED\r\n", activeTx, nil
 	}
-	if len(args) == 1 {
-		return "+PONG\r\n", nil, nil
-	} else {
-		response := fmt.Sprintf("$%d\r\n%s\r\n", len(args[1]), args[1])
-		return response, nil, nil
+
+	if DB.Role == "master" {
+		if len(args) == 1 {
+			return "+PONG\r\n", nil, nil
+		} else {
+			response := fmt.Sprintf("$%d\r\n%s\r\n", len(args[1]), args[1])
+			return response, nil, nil
+		}
 	}
+
+	return "", nil, nil
 }
 
 func handleEcho(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
