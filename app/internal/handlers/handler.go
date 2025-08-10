@@ -27,7 +27,6 @@ var commandHandlers = map[string]CmdHandler{
 	"MULTI":    handleMulti,
 	"INFO":     handleInfo,
 	"REPLCONF": handleReplconf,
-	"PSYNC":    handlePsync,
 }
 
 func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
@@ -94,6 +93,10 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 				writeError(conn, err)
 			}
 			conn.Write([]byte(response))
+		} else if command == "PSYNC" {
+			if err := handlePsync(conn, args, DB); err != nil {
+				writeError(conn, err)
+			}
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
