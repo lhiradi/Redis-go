@@ -144,38 +144,3 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 		}
 	}
 }
-
-func handleReplicaResponses(conn net.Conn, DB *db.DB) {
-	reader := bufio.NewReader(conn)
-
-	for {
-		args := utils.ParseArgs(reader)
-		if args == nil {
-			return // Connection closed or error
-		}
-
-		if len(args) == 0 {
-			continue
-		}
-
-		command := strings.ToUpper(args[0])
-
-		switch command {
-		case "REPLCONF":
-			if len(args) > 1 && strings.ToUpper(args[1]) == "ACK" {
-				response, _, err := handleReplconf(args, DB, nil)
-				if err != nil {
-					fmt.Printf("Error handling REPLCONF ACK from replica: %v\n", err)
-					// Maybe close connection? For now, just log and continue.
-				}
-				if response != "" {
-					conn.Write([]byte(response))
-				}
-			} else {
-				fmt.Printf("Received unexpected REPLCONF subcommand from replica: %s\n", args[1])
-			}
-		default:
-			fmt.Printf("Received unexpected command from replica: %s\n", command)
-		}
-	}
-}

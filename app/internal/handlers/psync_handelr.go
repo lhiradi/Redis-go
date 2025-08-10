@@ -36,6 +36,5 @@ func handlePsync(conn net.Conn, args []string, DB *db.DB) error {
 		return fmt.Errorf("failed to send empty RDB file: %w", err)
 	}
 	DB.AddReplica(conn)
-	// go handleReplicaResponses(conn, DB)
 	return nil
 }
