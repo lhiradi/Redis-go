@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/codecrafters-io/redis-starter-go/app/internal/db"
@@ -13,8 +12,8 @@ func handleReplconf(args []string, DB *db.DB, activeTx *transaction.Transaction)
 		activeTx.AddCommand("REPLCONF", args[1:])
 		return "+QUEUED\r\n", activeTx, nil
 	}
-	if len(args) < 2 {
-		return "", nil, fmt.Errorf("wrong number of arguments for 'REPLCONF' command")
+	if len(args) < 3 {
+		return "-ERR wrong number of arguments for 'REPLCONF' command\r\n", nil, nil
 	}
 
 	subcommand := strings.ToUpper(args[1])
