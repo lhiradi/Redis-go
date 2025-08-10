@@ -23,14 +23,10 @@ func handlePsync(conn net.Conn, args []string, DB *db.DB) error {
 		return fmt.Errorf("failed to send FULLRESYNC response: %w", err)
 	}
 
-	rdbFileHeader := fmt.Sprintf("$%d\r\n", len(emptyRDB))
+	rdbFileHeader := fmt.Sprintf("$%d\r\n%b", len(emptyRDB), emptyRDB)
 	_, err = conn.Write([]byte(rdbFileHeader))
 	if err != nil {
 		return fmt.Errorf("failed to send RDB file header: %w", err)
-	}
-	_, err = conn.Write(emptyRDB)
-	if err != nil {
-		return fmt.Errorf("failed to send empty RDB file: %w", err)
 	}
 	return nil
 }
