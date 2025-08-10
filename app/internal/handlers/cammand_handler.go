@@ -308,3 +308,7 @@ func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(infoString), infoString), nil, nil
 }
+
+func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	return ":0\r\n", nil, nil
+}
