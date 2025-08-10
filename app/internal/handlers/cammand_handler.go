@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/app/internal/db"
@@ -316,52 +317,58 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "+QUEUED\r\n", activeTx, nil
 	}
 	if len(args) < 3 {
-		return "", nil, fmt.Errorf(" wrong number of arguments for 'WAIT' command")
+		return "", nil, fmt.Errorf("wrong number of arguments for 'WAIT' command")
 	}
 
 	requiredAcks, err := strconv.ParseInt(args[1], 10, 64)
 	if err != nil {
-		return "", nil, fmt.Errorf("error performing wait: %w", err)
+		return "", nil, fmt.Errorf("error parsing numreplicas: %w", err)
 	}
 
 	timeOutMs, err := strconv.ParseInt(args[2], 10, 64)
 	if err != nil {
-		return "", nil, fmt.Errorf("error performing wait: %w", err)
+		return "", nil, fmt.Errorf("error parsing timeout: %w", err)
 	}
 
-	DB.ReplicaMu.Lock()
-	DB.NumAcksRecieved = 0
-	DB.ReplicaMu.Unlock()
+	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
 	DB.ReplicaMu.Lock()
+	pingCommand := utils.FormatRESPArray([]string{"PING"})
+	replicasToWaitFor := 0
 	for _, replica := range DB.Replicas {
-		if _, err := replica.Write([]byte(utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"}))); err != nil {
-			fmt.Println("Failed to getack after relaying command to replica", err.Error())
+		_, err := replica.Write([]byte(pingCommand))
+		if err != nil {
+		} else {
+			replicasToWaitFor++
 		}
 	}
 	DB.ReplicaMu.Unlock()
 
-	timeOut := time.Duration(timeOutMs) * time.Millisecond
-	ticker := time.NewTicker(100 * time.Millisecond)
+	if requiredAcks == 0 {
+		response := fmt.Sprintf(":%d\r\n", replicasToWaitFor)
+		return response, nil, nil
+	}
+	if replicasToWaitFor == 0 {
+		return ":0\r\n", nil, nil
+	}
 
-	timeOutChannel := time.After(timeOut)
+	timeout := time.Duration(timeOutMs) * time.Millisecond
+	timeoutChannel := time.After(timeout)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ticker.C:
-			if DB.NumAcksRecieved >= requiredAcks {
-				response := fmt.Sprintf(":%d\r\n", DB.NumAcksRecieved)
-				DB.ReplicaMu.Lock()
-				DB.NumAcksRecieved = 0
-				DB.ReplicaMu.Unlock()
+			currentAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
+			if currentAcks >= requiredAcks {
+				response := fmt.Sprintf(":%d\r\n", currentAcks)
 				return response, nil, nil
 			}
-		case <-timeOutChannel:
-			response := fmt.Sprintf(":%d\r\n", DB.NumAcksRecieved)
-			DB.ReplicaMu.Lock()
-			DB.NumAcksRecieved = 0
-			DB.ReplicaMu.Unlock()
+		case <-timeoutChannel:
+			finalAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
+			response := fmt.Sprintf(":%d\r\n", finalAcks)
 			return response, nil, nil
 		}
 	}
-
 }
