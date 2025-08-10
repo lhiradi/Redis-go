@@ -66,7 +66,7 @@ func handleSet(args []string, DB *db.DB, activeTx *transaction.Transaction) (str
 			return "", nil, fmt.Errorf(" invalid PX argument")
 		}
 	}
-	
+
 	DB.Set(key, value, ttlMs)
 	if DB.Role == "master" {
 		DB.PropagateCommand(args)
@@ -330,6 +330,10 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	}
 
 	DB.ReplicaMu.Lock()
+	DB.NumAcksRecieved = 0
+	DB.ReplicaMu.Unlock()
+
+	DB.ReplicaMu.Lock()
 	for _, replica := range DB.Replicas {
 		if _, err := replica.Write([]byte(utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"}))); err != nil {
 			fmt.Println("Failed to getack after relaying command to replica", err.Error())
@@ -359,4 +363,5 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 			return response, nil, nil
 		}
 	}
+
 }
