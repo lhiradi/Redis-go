@@ -333,10 +333,10 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
 	DB.ReplicaMu.Lock()
-	pingCommand := utils.FormatRESPArray([]string{"PING"})
+	replconfCommand := utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"})
 	replicasToWaitFor := 0
 	for _, replica := range DB.Replicas {
-		_, err := replica.Write([]byte(pingCommand))
+		_, err := replica.Write([]byte(replconfCommand))
 		if err != nil {
 		} else {
 			replicasToWaitFor++
