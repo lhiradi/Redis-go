@@ -58,6 +58,11 @@ func HandshakeWithMaster(conn net.Conn, port string) error {
 		return fmt.Errorf("REPLCONF capa psync2 failed: %w", err)
 	}
 
+	psyncCmd := "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n"
+	if _, err := conn.Write([]byte(psyncCmd)); err != nil {
+		return fmt.Errorf("PSYNC ? -1 failed: %w", err)
+	}
+
 	fmt.Println("Handshake with master successful.")
 	return nil
 }

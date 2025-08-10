@@ -20,7 +20,6 @@ func handleReplconf(args []string, DB *db.DB, activeTx *transaction.Transaction)
 	subcommand := strings.ToUpper(args[1])
 	switch subcommand {
 	case "LISTENING-PORT":
-		// As per the provided files, the simple handshake just needs a positive response
 		return "+OK\r\n", nil, nil
 	case "CAPA":
 		return "+OK\r\n", nil, nil
