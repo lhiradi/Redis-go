@@ -329,70 +329,47 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "", nil, fmt.Errorf("error parsing timeout: %w", err)
 	}
 
-	// Snapshot replicas count
+	// Snapshot current number of replicas
 	DB.ReplicaMu.RLock()
 	numReplicas := int64(len(DB.Replicas))
-	snapshot := make([]net.Conn, len(DB.Replicas))
-	copy(snapshot, DB.Replicas)
 	DB.ReplicaMu.RUnlock()
 
 	// If requested acks is invalid (<=0 or greater than available replicas),
 	// Redis returns the number of replicas currently connected.
 	if requiredAcks <= 0 || requiredAcks > numReplicas {
-		response := fmt.Sprintf(":%d\r\n", numReplicas)
-		return response, nil, nil
+		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 	}
 
 	// If master offset is zero, there are no new writes to wait for,
 	// so all replicas are already up-to-date. Return the number of replicas.
 	if DB.Offset == 0 {
-		response := fmt.Sprintf(":%d\r\n", numReplicas)
-		return response, nil, nil
+		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 	}
 
-	// Reset ack counter
+	// Reset ack counter before sending GETACK
 	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
-	// Build GETACK command once
 	getAckCommand := []byte(utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"}))
 
-	// Try to send GETACK to all snapshot replicas. Collect any dead conns for removal.
-	var deadConns []net.Conn
-	fmt.Printf("WAIT: Attempting to send GETACK to %d replicas (snapshot)\n", len(snapshot))
-	for i, rc := range snapshot {
-		n, err := rc.Write(getAckCommand)
+	// Send GETACK to replicas while holding the write lock to serialize writes.
+	// Remove any replicas that error on write.
+	DB.ReplicaMu.Lock()
+	fmt.Printf("WAIT: Sending GETACK to %d replicas (serializing writes)\n", len(DB.Replicas))
+	live := make([]net.Conn, 0, len(DB.Replicas))
+	for i, replicaConn := range DB.Replicas {
+		n, err := replicaConn.Write(getAckCommand)
 		if err != nil {
-			fmt.Printf("WAIT: Failed to send GETACK to replica (snapshot idx %d): %v\n", i, err)
-			deadConns = append(deadConns, rc)
+			fmt.Printf("WAIT: Failed to send GETACK to replica %d: %v\n", i, err)
+			_ = replicaConn.Close()
 			continue
 		}
-		fmt.Printf("WAIT: Sent %d bytes GETACK to replica (snapshot idx %d)\n", n, i)
+		fmt.Printf("WAIT: Sent %d bytes GETACK to replica %d\n", n, i)
+		live = append(live, replicaConn)
 	}
+	DB.Replicas = live
+	DB.ReplicaMu.Unlock()
 
-	// If any writes failed, remove those connections from the live DB.Replicas slice.
-	if len(deadConns) > 0 {
-		DB.ReplicaMu.Lock()
-		remaining := make([]net.Conn, 0, len(DB.Replicas))
-		for _, liveConn := range DB.Replicas {
-			shouldRemove := false
-			for _, dead := range deadConns {
-				if liveConn == dead {
-					shouldRemove = true
-					break
-				}
-			}
-			if shouldRemove {
-				_ = liveConn.Close()
-				continue
-			}
-			remaining = append(remaining, liveConn)
-		}
-		DB.Replicas = remaining
-		DB.ReplicaMu.Unlock()
-		fmt.Printf("WAIT: Removed %d dead replicas, %d remain\n", len(deadConns), len(remaining))
-	}
-
-	// If there are no replicas at all after cleanup, return 0 immediately.
+	// If there are no live replicas after cleanup, return 0 immediately.
 	DB.ReplicaMu.RLock()
 	replicasToWaitFor := len(DB.Replicas)
 	DB.ReplicaMu.RUnlock()
