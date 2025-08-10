@@ -64,7 +64,11 @@ func HandleMasterConnection(conn net.Conn, DB *db.DB) {
 				continue
 			}
 			if response != "" {
-				conn.Write([]byte(response))
+				_, err := conn.Write([]byte(response))
+				if err != nil {
+					fmt.Printf("Failed to write response to master: %v\n", err)
+					return
+				}
 			}
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
