@@ -6,6 +6,7 @@ import (
 
 	"github.com/codecrafters-io/redis-starter-go/app/internal/db"
 	"github.com/codecrafters-io/redis-starter-go/app/internal/transaction"
+	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
 func handleReplconf(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
@@ -26,7 +27,8 @@ func handleReplconf(args []string, DB *db.DB, activeTx *transaction.Transaction)
 
 	case "GETACK":
 		if args[2] == "*" {
-			response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
+
+			response := utils.FormatRESPArray([]string{"REPLCONF", "ACK", "0"})
 			return response, nil, nil
 		}
 
