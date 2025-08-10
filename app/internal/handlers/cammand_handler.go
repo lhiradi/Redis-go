@@ -310,5 +310,6 @@ func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 }
 
 func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
-	return ":0\r\n", nil, nil
+	replicaCount := len(DB.Replicas)
+	return fmt.Sprintf(":%d\r\n", replicaCount), nil, nil
 }
