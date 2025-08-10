@@ -329,56 +329,49 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "", nil, fmt.Errorf("error parsing timeout: %w", err)
 	}
 
-	// Snapshot current number of replicas
+	// Snapshot replica count
 	DB.ReplicaMu.RLock()
 	numReplicas := int64(len(DB.Replicas))
 	DB.ReplicaMu.RUnlock()
 
-	// If requested acks is invalid (<=0 or greater than available replicas),
-	// Redis returns the number of replicas currently connected.
 	if requiredAcks <= 0 || requiredAcks > numReplicas {
 		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 	}
 
-	// If master offset is zero, there are no new writes to wait for,
-	// so all replicas are already up-to-date. Return the number of replicas.
 	if DB.Offset == 0 {
 		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 	}
 
-	// Reset ack counter before sending GETACK
 	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
 	getAckCommand := []byte(utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"}))
 
-	// Send GETACK to replicas while holding the write lock to serialize writes.
-	// Remove any replicas that error on write.
+	// Send GETACK to each replica, locking per-connection so writes don't interleave.
 	DB.ReplicaMu.Lock()
-	fmt.Printf("WAIT: Sending GETACK to %d replicas (serializing writes)\n", len(DB.Replicas))
-	live := make([]net.Conn, 0, len(DB.Replicas))
-	for i, replicaConn := range DB.Replicas {
-		n, err := replicaConn.Write(getAckCommand)
+	fmt.Printf("WAIT: Sending GETACK to %d replicas (per-conn lock)\n", len(DB.Replicas))
+	live := make([]*db.ReplicaConn, 0, len(DB.Replicas))
+	for i, rc := range DB.Replicas {
+		rc.Mu.Lock()
+		n, err := rc.Conn.Write(getAckCommand)
+		rc.Mu.Unlock()
 		if err != nil {
 			fmt.Printf("WAIT: Failed to send GETACK to replica %d: %v\n", i, err)
-			_ = replicaConn.Close()
+			_ = rc.Conn.Close()
 			continue
 		}
 		fmt.Printf("WAIT: Sent %d bytes GETACK to replica %d\n", n, i)
-		live = append(live, replicaConn)
+		live = append(live, rc)
 	}
 	DB.Replicas = live
 	DB.ReplicaMu.Unlock()
 
-	// If there are no live replicas after cleanup, return 0 immediately.
 	DB.ReplicaMu.RLock()
 	replicasToWaitFor := len(DB.Replicas)
 	DB.ReplicaMu.RUnlock()
 	if replicasToWaitFor == 0 {
-		fmt.Println("WAIT: No replicas to wait for (after cleanup).")
 		return ":0\r\n", nil, nil
 	}
 
-	// Wait loop: poll DB.NumAcksRecieved until requiredAcks or timeout
 	timeout := time.Duration(timeOutMs) * time.Millisecond
 	timeoutChannel := time.After(timeout)
 	ticker := time.NewTicker(50 * time.Millisecond)

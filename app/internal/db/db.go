@@ -11,6 +11,11 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
+type ReplicaConn struct {
+	Conn net.Conn
+	Mu   sync.Mutex
+}
+
 type DB struct {
 	Data            map[string]cacheValue
 	Streams         map[string][]StreamEntry
@@ -18,7 +23,7 @@ type DB struct {
 	Role            string
 	ID              string
 	Offset          int
-	Replicas        []net.Conn
+	Replicas        []*ReplicaConn
 	ReplicaMu       sync.RWMutex
 	NumAcksRecieved int64
 }
@@ -57,31 +62,37 @@ func (db *DB) AddReplica(conn net.Conn) {
 	db.ReplicaMu.Lock()
 	defer db.ReplicaMu.Unlock()
 
-	db.Replicas = append(db.Replicas, conn)
+	db.Replicas = append(db.Replicas, &ReplicaConn{Conn: conn})
 	fmt.Printf("Added replica connection. Total replicas: %d \n", len(db.Replicas))
 }
 
 func (db *DB) RemoveReplica(conn net.Conn) {
 	db.ReplicaMu.Lock()
 	defer db.ReplicaMu.Unlock()
-	for i, c := range db.Replicas {
-		if c == conn {
+	for i, r := range db.Replicas {
+		if r.Conn == conn {
+			// close to be safe
+			_ = r.Conn.Close()
 			db.Replicas = append(db.Replicas[:i], db.Replicas[i+1:]...)
 			break
 		}
 	}
 }
 
+// PropagateCommand now locks per-replica before writing
 func (db *DB) PropagateCommand(args []string) {
 	db.ReplicaMu.RLock()
 	defer db.ReplicaMu.RUnlock()
 
 	respCmd := utils.FormatRESPArray(args)
 
-	for _, conn := range db.Replicas {
-		_, err := conn.Write([]byte(respCmd))
+	for _, r := range db.Replicas {
+		r.Mu.Lock()
+		_, err := r.Conn.Write([]byte(respCmd))
+		r.Mu.Unlock()
 		if err != nil {
 			fmt.Printf("Failed to propagate command to replica: %v\n", err)
+			// Note: we don't remove here; removal happens in other code paths (or optionally add removal logic)
 			continue
 		}
 	}
