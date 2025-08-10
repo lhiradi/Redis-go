@@ -241,9 +241,11 @@ func handleINCR(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	}
 	if DB.Role == "master" {
 		DB.PropagateCommand(args)
+		response := fmt.Sprintf(":%d\r\n", value)
+		return response, nil, nil
 	}
-	response := fmt.Sprintf(":%d\r\n", value)
-	return response, nil, nil
+	return "", nil, nil
+
 }
 
 func handleMulti(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {

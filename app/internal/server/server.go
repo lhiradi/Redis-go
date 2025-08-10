@@ -38,7 +38,6 @@ func Start(port, replicaof string) {
 			fmt.Println("Failed to connect to master:", err.Error())
 			os.Exit(1)
 		}
-		defer conn.Close()
 
 		if err := handlers.HandshakeWithMaster(conn, port); err != nil {
 			fmt.Println("Handshake with master failed:", err.Error())
