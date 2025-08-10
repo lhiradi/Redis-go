@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/codecrafters-io/redis-starter-go/app/internal/db"
@@ -28,7 +29,7 @@ func handleReplconf(args []string, DB *db.DB, activeTx *transaction.Transaction)
 	case "GETACK":
 		if args[2] == "*" {
 
-			response := utils.FormatRESPArray([]string{"REPLCONF", "ACK", "0"})
+			response := utils.FormatRESPArray([]string{"REPLCONF", "ACK", strconv.Itoa(DB.Offset)})
 			return response, nil, nil
 		}
 

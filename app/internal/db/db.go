@@ -47,6 +47,10 @@ func New(role string) *DB {
 	}
 }
 
+func (db *DB) UpdateOffset(length int) {
+	db.Offset = db.Offset + length
+}
+
 func (db *DB) AddReplica(conn net.Conn) {
 	db.ReplicaMu.Lock()
 	defer db.ReplicaMu.Unlock()

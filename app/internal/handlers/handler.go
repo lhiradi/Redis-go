@@ -56,20 +56,18 @@ func HandleMasterConnection(conn net.Conn, DB *db.DB) {
 		command := strings.ToUpper(args[0])
 
 		if handler, ok := commandHandlers[command]; ok {
+			respCmdLength := len(utils.FormatRESPArray(args))
+
 			response, _, err := handler(args, DB, activeTx)
 			if err != nil {
-				// Write the error back to the master before continuing.
 				writeError(conn, err)
 				fmt.Printf("Error handling command from master: %v\n", err)
 				continue
 			}
 			if response != "" {
-				_, err := conn.Write([]byte(response))
-				if err != nil {
-					fmt.Printf("Failed to write response to master: %v\n", err)
-					return
-				}
+				conn.Write([]byte(response))
 			}
+			DB.UpdateOffset(respCmdLength)
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
