@@ -39,6 +39,37 @@ func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *trans
 	return tx, nil
 }
 
+func HandleMasterConnection(conn net.Conn, DB *db.DB) {
+	reader := bufio.NewReader(conn)
+	var activeTx *transaction.Transaction
+
+	for {
+		args := utils.ParseArgs(reader)
+		if args == nil {
+			return
+		}
+
+		if len(args) == 0 {
+			continue
+		}
+
+		command := strings.ToUpper(args[0])
+
+		if handler, ok := commandHandlers[command]; ok {
+			response, _, err := handler(args, DB, activeTx)
+			if err != nil {
+				fmt.Printf("Error handling command from master: %v\n", err)
+				continue
+			}
+			if response != "" {
+				conn.Write([]byte(response))
+			}
+		} else {
+			fmt.Printf("Unknown command from master: '%s'\n", args[0])
+		}
+	}
+}
+
 func HandleConnection(conn net.Conn, DB *db.DB) {
 	defer conn.Close()
 	defer DB.RemoveReplica(conn) // Ensure replica is removed on connection close

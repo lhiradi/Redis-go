@@ -43,6 +43,8 @@ func Start(port, replicaof string) {
 			fmt.Println("Handshake with master failed:", err.Error())
 			os.Exit(1)
 		}
+
+		go handlers.HandleMasterConnection(conn, db)
 	}
 	for {
 		conn, err := l.Accept()
