@@ -50,6 +50,7 @@ func New(role string) *DB {
 		Role:            role,
 		ID:              utils.GenerateReplicaID(),
 		Offset:          0,
+		Replicas:        make([]*ReplicaConn, 0),
 		NumAcksRecieved: 0,
 	}
 }
@@ -71,7 +72,6 @@ func (db *DB) RemoveReplica(conn net.Conn) {
 	defer db.ReplicaMu.Unlock()
 	for i, r := range db.Replicas {
 		if r.Conn == conn {
-			// close to be safe
 			_ = r.Conn.Close()
 			db.Replicas = append(db.Replicas[:i], db.Replicas[i+1:]...)
 			break
