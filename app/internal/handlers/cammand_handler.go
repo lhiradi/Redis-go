@@ -348,26 +348,39 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return response, nil, nil
 	}
 
+	// Reset ACK counter
 	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
-	DB.ReplicaMu.RLock()
-	replicasToWaitFor := len(DB.Replicas)
+	// Build GETACK command
 	getAckCommand := utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"})
+
+	// Send GETACK to all replicas; remove dead ones.
+	DB.ReplicaMu.Lock()
+	replicasToWaitFor := len(DB.Replicas)
 	fmt.Printf("WAIT: Sending GETACK to %d replicas\n", replicasToWaitFor) // Debug
 
-	for _, replicaConn := range DB.Replicas {
-		_, err := replicaConn.Write([]byte(getAckCommand))
+	live := make([]net.Conn, 0, replicasToWaitFor)
+	for i, replicaConn := range DB.Replicas {
+		n, err := replicaConn.Write([]byte(getAckCommand))
 		if err != nil {
-			fmt.Printf("WAIT: Failed to send GETACK to a replica: %v\n", err)
+			// Remove dead replica from the list and close the connection
+			fmt.Printf("WAIT: Failed to send GETACK to replica %d: %v\n", i, err)
+			_ = replicaConn.Close()
+			continue
 		}
+		fmt.Printf("WAIT: Sent %d bytes to replica %d\n", n, i)
+		live = append(live, replicaConn)
 	}
-	DB.ReplicaMu.RUnlock()
+	// Replace replicas slice with only live connections
+	DB.Replicas = live
+	DB.ReplicaMu.Unlock()
 
 	if replicasToWaitFor == 0 {
 		fmt.Println("WAIT: No replicas to wait for.")
 		return ":0\r\n", nil, nil
 	}
 
+	// Wait loop (periodic ticker + timeout). REPLCONF ACK from replicas increments DB.NumAcksRecieved elsewhere.
 	timeout := time.Duration(timeOutMs) * time.Millisecond
 	timeoutChannel := time.After(timeout)
 	ticker := time.NewTicker(50 * time.Millisecond)
