@@ -438,6 +438,7 @@ func handleKeys(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 			return "", nil, err
 		}
 		if match {
+			fmt.Printf("found (%s) as key loaded from rdb", key) //debug
 			matchingKeys = append(matchingKeys, key)
 		}
 	}
