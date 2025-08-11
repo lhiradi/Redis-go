@@ -5,7 +5,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -330,91 +329,59 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "", nil, fmt.Errorf("error parsing timeout: %w", err)
 	}
 
-	// Lock briefly to get the initial list of replicas
 	DB.ReplicaMu.RLock()
-	initialReplicas := make([]*db.ReplicaConn, len(DB.Replicas))
-	copy(initialReplicas, DB.Replicas) // Copy the slice to avoid holding the lock during operations
-	numReplicas := int64(len(initialReplicas))
-	DB.ReplicaMu.RUnlock()
+	numReplicas := int64(len(DB.Replicas))
 
-	if requiredAcks <= 0 || DB.Offset == 0 {
+	replicasToSignal := make([]*db.ReplicaConn, len(DB.Replicas))
+	copy(replicasToSignal, DB.Replicas)
+	DB.ReplicaMu.RUnlock() // Release the lock as soon as we have the data
+
+	if requiredAcks <= 0 || DB.Offset == 0 || numReplicas == 0 {
 		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 	}
 
 	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
 	getAckCommand := []byte(utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"}))
-	fmt.Printf("WAIT: Preparing to send GETACK command: %s", string(getAckCommand))
+	fmt.Printf("WAIT: Preparing to send GETACK command: %s", string(getAckCommand)) // Optional debug
 
-	// Channel to signal completion of sending to a replica
-	doneCh := make(chan *db.ReplicaConn, len(initialReplicas))
-	var wg sync.WaitGroup
+	fmt.Printf("WAIT: Sending GETACK to %d replicas\n", len(replicasToSignal))
+	sentCount := 0 // Count how many we actually attempted to send to
+	for i, rc := range replicasToSignal {
+		rc.Mu.Lock()
+		_, err := rc.Conn.Write(getAckCommand)
+		rc.Mu.Unlock()
+		if err != nil {
+			fmt.Printf("WAIT: Failed to send GETACK to replica %d (%v): %v\n", i, rc.Conn.RemoteAddr(), err)
+		} else {
+			fmt.Printf("WAIT: Successfully sent GETACK to replica %d (%v)\n", i, rc.Conn.RemoteAddr())
+			sentCount++
 
-	// Send GETACK to each replica concurrently
-	fmt.Printf("WAIT: Sending GETACK to %d replicas (concurrently)\n", len(initialReplicas))
-	for _, rc := range initialReplicas {
-		wg.Add(1)
-		go func(replicaConn *db.ReplicaConn) {
-			defer wg.Done()
-			replicaConn.Mu.Lock()
-			_, err := replicaConn.Conn.Write(getAckCommand)
-			replicaConn.Mu.Unlock()
-			if err != nil {
-				fmt.Printf("WAIT: Failed to send GETACK to replica %v: %v\n", replicaConn.Conn.RemoteAddr(), err)
-				doneCh <- nil
-				return
+		}
+
+		timeout := time.Duration(timeOutMs) * time.Millisecond
+		timeoutChannel := time.After(timeout)
+		ticker := time.NewTicker(10 * time.Millisecond) // Check every 10ms
+		defer ticker.Stop()
+
+		fmt.Printf("WAIT: Starting wait loop for %d acks (from %d known replicas), timeout %v\n", requiredAcks, numReplicas, timeout)
+
+		for {
+			select {
+			case <-ticker.C:
+				currentAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
+				fmt.Printf("WAIT: Ticker check - Acks received: %d / %d\n", currentAcks, requiredAcks)
+				// Standard Redis WAIT: return as soon as required acks are received.
+				if currentAcks >= requiredAcks {
+					fmt.Printf("WAIT: Condition met (required): %d >= %d\n", currentAcks, requiredAcks)
+					return fmt.Sprintf(":%d\r\n", currentAcks), nil, nil
+				}
+			case <-timeoutChannel:
+				finalAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
+				fmt.Printf("WAIT: Timeout reached. Acks received: %d\n", finalAcks)
+				return fmt.Sprintf(":%d\r\n", finalAcks), nil, nil
 			}
-			fmt.Printf("WAIT: Successfully sent GETACK to replica %v\n", replicaConn.Conn.RemoteAddr())
-			doneCh <- replicaConn
-		}(rc)
-	}
-
-	go func() {
-		wg.Wait()
-		close(doneCh)
-	}()
-
-	liveReplicas := []*db.ReplicaConn{}
-	for rc := range doneCh {
-		if rc != nil {
-			liveReplicas = append(liveReplicas, rc)
 		}
 	}
-
-	DB.ReplicaMu.Lock()
-	DB.Replicas = liveReplicas
-	finalNumReplicas := int64(len(DB.Replicas))
-	DB.ReplicaMu.Unlock()
-
-	fmt.Printf("WAIT: After sending GETACK, live replicas: %d\n", finalNumReplicas)
-
-	if requiredAcks >= finalNumReplicas {
-		return fmt.Sprintf(":%d\r\n", finalNumReplicas), nil, nil
-	}
-	if finalNumReplicas == 0 {
-		return ":0\r\n", nil, nil
-	}
-
-	timeout := time.Duration(timeOutMs) * time.Millisecond
-	timeoutChannel := time.After(timeout)
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
-
-	fmt.Printf("WAIT: Starting wait loop for %d acks (max possible: %d), timeout %v\n", requiredAcks, finalNumReplicas, timeout)
-
-	for {
-		select {
-		case <-ticker.C:
-			currentAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
-			fmt.Printf("WAIT: Ticker check - Acks received: %d / %d\n", currentAcks, requiredAcks)
-			if currentAcks >= requiredAcks {
-				fmt.Printf("WAIT: Condition met (required): %d >= %d\n", currentAcks, requiredAcks)
-				return fmt.Sprintf(":%d\r\n", currentAcks), nil, nil
-			}
-		case <-timeoutChannel:
-			finalAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
-			fmt.Printf("WAIT: Timeout reached. Acks received: %d\n", finalAcks)
-			return fmt.Sprintf(":%d\r\n", finalAcks), nil, nil
-		}
-	}
+	return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 }
