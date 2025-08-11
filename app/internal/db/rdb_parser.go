@@ -115,8 +115,34 @@ func readLength(reader *bufio.Reader) (int, error) {
 			return 0, err
 		}
 		return int(binary.BigEndian.Uint32(lengthBytes)), nil
+	case 3: // Add this case to handle compressed strings
+		switch firstByte & 0x3F {
+		case 0:
+			// 8-bit integer
+			val, err := reader.ReadByte()
+			if err != nil {
+				return 0, err
+			}
+			return int(val), nil
+		case 1:
+			// 16-bit integer
+			val := make([]byte, 2)
+			if _, err := io.ReadFull(reader, val); err != nil {
+				return 0, err
+			}
+			return int(binary.LittleEndian.Uint16(val)), nil
+		case 2:
+			// 32-bit integer
+			val := make([]byte, 4)
+			if _, err := io.ReadFull(reader, val); err != nil {
+				return 0, err
+			}
+			return int(binary.LittleEndian.Uint32(val)), nil
+		default:
+			// Should not happen for this stage, but good practice
+			return 0, fmt.Errorf("unsupported compressed encoding type: %x", firstByte&0x3F)
+		}
 	default:
-		// Compressed string. For this stage we assume simple string values.
 		return 0, fmt.Errorf("unsupported length encoding type: %x", (firstByte&0xC0)>>6)
 	}
 }
