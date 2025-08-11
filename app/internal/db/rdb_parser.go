@@ -12,8 +12,6 @@ import (
 
 func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 	filePath := filepath.Join(dir, filename)
-
-	// Verify file exists; if not, start with an empty DB.
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		fmt.Printf("RDB file not found at %s. Starting with empty DB.\n", filePath)
 		return make(map[string]cacheValue), nil
@@ -21,7 +19,6 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 		return nil, fmt.Errorf("error checking RDB file: %w", err)
 	}
 
-	// Open the file.
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening RDB file: %w", err)
@@ -96,12 +93,10 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			return data, nil
 		}
 	}
-	// If we reach here the file ended unexpectedly.
 	return data, fmt.Errorf("unexpected EOF while parsing RDB")
 }
 
-// readLength reads a length‑encoded integer according to the
-// RDB format specification.
+
 func readLength(r *bufio.Reader) (int, error) {
 	first, err := r.ReadByte()
 	if err != nil {
@@ -129,8 +124,7 @@ func readLength(r *bufio.Reader) (int, error) {
 	}
 }
 
-// readString reads a bulk string or integer (special encoding)
-// from the RDB file.
+
 func readString(r *bufio.Reader) (string, error) {
 	// Peek the first byte to decide whether this is a special encoding.
 	first, err := r.ReadByte()

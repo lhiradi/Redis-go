@@ -33,13 +33,7 @@ func Start(port, replicaof, dir, dbFileName string) {
 		fmt.Println("Failed to load RDB file:", err)
 		os.Exit(1)
 	}
-	
-	db.Mu.RLock()
-	fmt.Printf("DEBUG: Keys in DB after RDB load: %v\n", db.Data)
-	for k := range db.Data {
-		fmt.Printf("DEBUG: Found key '%s' after RDB load\n", k)
-	}
-	db.Mu.RUnlock()
+
 
 	if role == "slave" {
 		masterAddr := utils.ParsReplicaOf(replicaof)
