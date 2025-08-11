@@ -83,10 +83,10 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			if err != nil {
 				return nil, fmt.Errorf("error reading key: %w", err)
 			}
-			value, err := "readString(reader)", nil
-			// if err != nil {
-			// 	return nil, fmt.Errorf("error reading value: %w", err)
-			// }
+			value, err := readString(reader)
+			if err != nil {
+				return nil, fmt.Errorf("error reading value: %w", err)
+			}
 			data[key] = cacheValue{Value: value, Ttl: ttl}
 			ttl = 0 // Reset TTL after use
 		case 0xFF: // End of RDB
@@ -128,14 +128,16 @@ func readLength(reader *bufio.Reader) (int, error) {
 
 // readString reads a Redis-encoded string (possibly integer or LZF compressed)
 func readString(reader *bufio.Reader) (string, error) {
-	lengthOrEnc, err := readLength(reader)
+	firstByte, err := reader.ReadByte()
 	if err != nil {
 		return "", err
 	}
 
-	// Special encoding
-	if lengthOrEnc == 0 || lengthOrEnc == 1 || lengthOrEnc == 2 {
-		switch lengthOrEnc {
+	// Check for special encoding
+	// The top two bits being 11 indicate a special encoding, the next 6 bits are the encoding type
+	encodingType := (firstByte & 0xC0) >> 6
+	if encodingType == 3 {
+		switch firstByte & 0x3F {
 		case 0: // 8-bit int
 			b, err := reader.ReadByte()
 			if err != nil {
@@ -154,11 +156,19 @@ func readString(reader *bufio.Reader) (string, error) {
 				return "", err
 			}
 			return strconv.Itoa(int(int32(binary.LittleEndian.Uint32(buf)))), nil
+		default:
+			return "", fmt.Errorf("unsupported special encoding")
 		}
 	}
 
 	// Normal raw string
-	buf := make([]byte, lengthOrEnc)
+	// The firstByte is a normal length header, we need to unread it and call readLength
+	reader.UnreadByte()
+	length, err := readLength(reader)
+	if err != nil {
+		return "", err
+	}
+	buf := make([]byte, length)
 	if _, err := io.ReadFull(reader, buf); err != nil {
 		return "", err
 	}
