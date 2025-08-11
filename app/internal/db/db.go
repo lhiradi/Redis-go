@@ -57,6 +57,18 @@ func New(role string) *DB {
 	}
 }
 
+func (db *DB) ParseAndLoadRDBFile() error {
+	data, err := ParseRDBFile(db.RDBFileDir, db.RDBFileName)
+	if err != nil {
+		return fmt.Errorf("failed to parse RDB file: %w", err)
+	}
+
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
+	db.Data = data
+	return nil
+}
+
 func (db *DB) UpdateOffset(length int) {
 	db.Offset = db.Offset + length
 }

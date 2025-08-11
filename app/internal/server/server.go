@@ -29,6 +29,11 @@ func Start(port, replicaof, dir, dbFileName string) {
 	db.RDBFileDir = dir
 	db.RDBFileName = dbFileName
 
+	if err := db.ParseAndLoadRDBFile(); err != nil {
+		fmt.Println("Failed to load RDB file:", err)
+		os.Exit(1)
+	}
+	
 	if role == "slave" {
 		masterAddr := utils.ParsReplicaOf(replicaof)
 		if masterAddr == "" {
