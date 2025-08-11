@@ -120,7 +120,7 @@ func readLength(r *bufio.Reader) (int, error) {
 		if _, err := io.ReadFull(r, buf[:]); err != nil {
 			return 0, err
 		}
-		return int(binary.BigEndian.Uint32(buf[:])), nil
+		return int(binary.LittleEndian.Uint32(buf[:])), nil
 	case 3: // special encoding (e.g. integer)
 		return int(first & 0x3F), nil
 	default:
