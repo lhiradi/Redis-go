@@ -26,6 +26,8 @@ type DB struct {
 	Replicas        []*ReplicaConn
 	ReplicaMu       sync.RWMutex
 	NumAcksRecieved int64
+	RDBFileDir      string
+	RDBFileName     string
 }
 
 type StreamEntry struct {

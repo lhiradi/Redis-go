@@ -389,3 +389,29 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		}
 	}
 }
+
+func handleConfig(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	if activeTx != nil {
+		return "+QUEUED\r\n", activeTx, nil
+	}
+
+	if len(args) < 3 {
+		return "", nil, fmt.Errorf(" wrong number of arguments for 'CONFIG' command")
+	}
+
+	if args[1] == "GET" {
+		subCommand := strings.ToLower(args[2])
+		switch subCommand {
+		case "dir":
+			response := utils.FormatRESPArray([]string{"dir", DB.RDBFileDir})
+			return response, nil, nil
+
+		case "dbfilename":
+			response := utils.FormatRESPArray([]string{"dbfilename", DB.RDBFileName})
+			return response, nil, nil
+		}
+
+		return "", nil, fmt.Errorf(" wrong arguments for 'CONFIG' command")
+	}
+	return "", nil, fmt.Errorf(" wrong arguments for 'CONFIG' command")
+}

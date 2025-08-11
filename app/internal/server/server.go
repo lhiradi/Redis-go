@@ -11,7 +11,7 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/internal/utils"
 )
 
-func Start(port, replicaof string) {
+func Start(port, replicaof, dir, dbFileName string) {
 	l, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		fmt.Println("Failed to bind to port", port)
@@ -26,6 +26,8 @@ func Start(port, replicaof string) {
 		role = "slave"
 	}
 	db := db.New(role)
+	db.RDBFileDir = dir
+	db.RDBFileName = dbFileName
 
 	if role == "slave" {
 		masterAddr := utils.ParsReplicaOf(replicaof)

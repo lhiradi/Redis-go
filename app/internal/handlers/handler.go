@@ -28,6 +28,7 @@ var commandHandlers = map[string]CmdHandler{
 	"INFO":     handleInfo,
 	"REPLCONF": handleReplconf,
 	"WAIT":     handleWait,
+	"CONFIG":   handleConfig,
 }
 
 func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
