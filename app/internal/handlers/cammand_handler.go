@@ -428,8 +428,8 @@ func handleKeys(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	}
 
 	pattern := args[1]
-	DB.Mu.RLock()
-	defer DB.Mu.RUnlock()
+	// DB.Mu.RLock()
+	// defer DB.Mu.RUnlock()
 
 	var matchingKeys []string
 	for key := range DB.Data {
