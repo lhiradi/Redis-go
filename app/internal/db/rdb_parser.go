@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
@@ -115,7 +116,7 @@ func readLength(reader *bufio.Reader) (int, error) {
 			return 0, err
 		}
 		return int(binary.BigEndian.Uint32(lengthBytes)), nil
-	case 3: // Add this case to handle compressed strings
+	case 3:
 		switch firstByte & 0x3F {
 		case 0:
 			// 8-bit integer
@@ -149,6 +150,43 @@ func readLength(reader *bufio.Reader) (int, error) {
 
 // readString reads a length-prefixed string from the reader.
 func readString(reader *bufio.Reader) (string, error) {
+	// Peek at the first byte to determine the encoding type without consuming it.
+	firstByte, err := reader.Peek(1)
+	if err != nil {
+		return "", err
+	}
+
+	// Check for special encoding (type 3).
+	encodingType := (firstByte[0] & 0xC0) >> 6
+	if encodingType == 3 {
+		// Consume the first byte since we've already peeked.
+		reader.ReadByte()
+
+		// The lower 6 bits specify the integer size.
+		switch firstByte[0] & 0x3F {
+		case 0: // 8-bit integer
+			val, err := reader.ReadByte()
+			if err != nil {
+				return "", err
+			}
+			return strconv.Itoa(int(val)), nil
+		case 1: // 16-bit integer
+			val := make([]byte, 2)
+			if _, err := io.ReadFull(reader, val); err != nil {
+				return "", err
+			}
+			return strconv.Itoa(int(binary.LittleEndian.Uint16(val))), nil
+		case 2: // 32-bit integer
+			val := make([]byte, 4)
+			if _, err := io.ReadFull(reader, val); err != nil {
+				return "", err
+			}
+			return strconv.Itoa(int(binary.LittleEndian.Uint32(val))), nil
+		default:
+			return "", fmt.Errorf("unsupported compressed encoding type: %x", firstByte[0]&0x3F)
+		}
+	}
+
 	length, err := readLength(reader)
 	if err != nil {
 		return "", err
