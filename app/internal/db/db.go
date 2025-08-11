@@ -63,6 +63,8 @@ func (db *DB) ParseAndLoadRDBFile() error {
 		return fmt.Errorf("failed to parse RDB file: %w", err)
 	}
 
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 	db.Data = data
 	return nil
 }
