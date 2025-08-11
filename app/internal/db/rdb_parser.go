@@ -93,10 +93,6 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			ttl = 0 // Reset for the next key.
 		case 0xFF: // End of RDB.
 			return data, nil
-		default:
-			// For the purposes of the early stages we ignore all other opcodes.
-			// In a full implementation you’d need to handle more types.
-			return nil, fmt.Errorf("unsupported opcode %x in RDB file", opcode)
 		}
 	}
 	// If we reach here the file ended unexpectedly.
