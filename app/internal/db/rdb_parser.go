@@ -56,6 +56,15 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			if _, err := reader.ReadByte(); err != nil { // We don't care about the DB number
 				return nil, fmt.Errorf("error reading database number: %w", err)
 			}
+		case 0xFA:
+			// Read and discard the AUX key.
+			if _, err := readString(reader); err != nil {
+				return nil, fmt.Errorf("error reading AUX key: %w", err)
+			}
+			// Read and discard the AUX value.
+			if _, err := readString(reader); err != nil {
+				return nil, fmt.Errorf("error reading AUX value: %w", err)
+			}
 		case 0xFD: // Expiry in seconds
 			expiryTimeBytes := make([]byte, 4)
 			if _, err := io.ReadFull(reader, expiryTimeBytes); err != nil {
