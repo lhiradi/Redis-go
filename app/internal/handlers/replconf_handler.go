@@ -39,7 +39,6 @@ func handleReplconf(args []string, DB *db.DB, activeTx *transaction.Transaction)
 			return "-ERR REPLCONF ACK requires an offset argument\r\n", nil, nil
 		}
 		atomic.AddInt64(&DB.NumAcksRecieved, 1)
-		fmt.Printf("Replica ACK received. Total Acks: %d\n", atomic.LoadInt64(&DB.NumAcksRecieved))
 		return "", nil, nil
 	}
 
