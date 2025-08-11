@@ -72,6 +72,7 @@ func (db *DB) RemoveReplica(conn net.Conn) {
 	defer db.ReplicaMu.Unlock()
 	for i, r := range db.Replicas {
 		if r.Conn == conn {
+			fmt.Printf("Removing replica connection from address: %s\n", conn.RemoteAddr().String())
 			_ = r.Conn.Close()
 			db.Replicas = append(db.Replicas[:i], db.Replicas[i+1:]...)
 			break

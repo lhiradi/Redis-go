@@ -135,6 +135,7 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 			if err := handlePsync(conn, args, DB); err != nil {
 				writeError(conn, err)
 			}
+			fmt.Printf("Replica count after PSYNC: %d\n", len(DB.Replicas))
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))

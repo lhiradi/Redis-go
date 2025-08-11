@@ -335,6 +335,9 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	copy(replicasToSignal, DB.Replicas)
 	DB.ReplicaMu.RUnlock()
 
+	fmt.Printf("WAIT: Current replication offset: %d\n", DB.Offset)
+	fmt.Printf("WAIT: Found %d replicas to signal.\n", numReplicas)
+	
 	if requiredAcks <= 0 || DB.Offset == 0 || numReplicas == 0 {
 		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 	}
