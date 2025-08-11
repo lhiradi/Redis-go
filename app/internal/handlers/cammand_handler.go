@@ -71,6 +71,7 @@ func handleSet(args []string, DB *db.DB, activeTx *transaction.Transaction) (str
 	DB.Set(key, value, ttlMs)
 	if DB.Role == "master" {
 		DB.PropagateCommand(args)
+		DB.UpdateOffset(len(utils.FormatRESPArray(args)))
 		return "+OK\r\n", nil, nil
 	}
 	return "", nil, nil
@@ -130,6 +131,7 @@ func handleXAdd(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	}
 	if DB.Role == "master" {
 		DB.PropagateCommand(args)
+		DB.UpdateOffset(len(utils.FormatRESPArray(args)))
 	}
 	response := fmt.Sprintf("$%d\r\n%s\r\n", len(outPutID), outPutID)
 	return response, nil, nil
@@ -248,6 +250,7 @@ func handleINCR(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	}
 	if DB.Role == "master" {
 		DB.PropagateCommand(args)
+		DB.UpdateOffset(len(utils.FormatRESPArray(args)))
 		response := fmt.Sprintf(":%d\r\n", value)
 		return response, nil, nil
 	}
@@ -337,7 +340,7 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 
 	fmt.Printf("WAIT: Current replication offset: %d\n", DB.Offset)
 	fmt.Printf("WAIT: Found %d replicas to signal.\n", numReplicas)
-	
+
 	if requiredAcks <= 0 || DB.Offset == 0 || numReplicas == 0 {
 		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 	}
