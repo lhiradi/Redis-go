@@ -10,7 +10,6 @@ import (
 	"strconv"
 )
 
-
 func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 	filePath := filepath.Join(dir, filename)
 
@@ -81,14 +80,16 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			}
 			ttl = int64(binary.BigEndian.Uint64(buf[:]))
 		case 0x00: // String value.
+			value, err := readString(reader)
+			if err != nil {
+				return nil, fmt.Errorf("error reading value for key %s: %w", value, err)
+			}
+
 			key, err := readString(reader)
 			if err != nil {
 				return nil, fmt.Errorf("error reading key: %w", err)
 			}
-			value, err := readString(reader)
-			if err != nil {
-				return nil, fmt.Errorf("error reading value for key %s: %w", key, err)
-			}
+
 			data[key] = cacheValue{Value: value, Ttl: ttl}
 			ttl = 0 // Reset for the next key.
 		case 0xFF: // End of RDB.
