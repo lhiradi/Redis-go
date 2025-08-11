@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 )
 
-
 func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 	filePath := filepath.Join(dir, filename)
 
@@ -30,7 +29,6 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 	defer file.Close()
 
 	reader := bufio.NewReader(file)
-
 
 	magicNumber := make([]byte, 5)
 	if _, err := io.ReadFull(reader, magicNumber); err != nil || string(magicNumber) != "REDIS" {
@@ -82,13 +80,10 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			data[key] = cacheValue{Value: value, Ttl: 0}
 		case 0xFF: // End of file
 			return data, nil
-		default:
-			return data, nil
 		}
 	}
 	return data, nil
 }
-
 
 func readLength(reader *bufio.Reader) (int, error) {
 	firstByte, err := reader.ReadByte()
