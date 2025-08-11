@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -329,47 +330,68 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "", nil, fmt.Errorf("error parsing timeout: %w", err)
 	}
 
-	// Snapshot replica count
+	// Lock briefly to get the initial list of replicas
 	DB.ReplicaMu.RLock()
-	numReplicas := int64(len(DB.Replicas))
+	initialReplicas := make([]*db.ReplicaConn, len(DB.Replicas))
+	copy(initialReplicas, DB.Replicas) // Copy the slice to avoid holding the lock during operations
+	numReplicas := int64(len(initialReplicas))
 	DB.ReplicaMu.RUnlock()
 
-	if requiredAcks <= 0 || requiredAcks > numReplicas {
-		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
-	}
-
-	if DB.Offset == 0 {
+	if requiredAcks <= 0 || DB.Offset == 0 {
 		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 	}
 
 	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
 	getAckCommand := []byte(utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"}))
-	fmt.Println(string(getAckCommand))
+	fmt.Printf("WAIT: Preparing to send GETACK command: %s", string(getAckCommand))
 
-	// Send GETACK to each replica, locking per-connection so writes don't interleave.
-	DB.ReplicaMu.Lock()
-	fmt.Printf("WAIT: Sending GETACK to %d replicas (per-conn lock)\n", len(DB.Replicas))
-	live := make([]*db.ReplicaConn, 0, len(DB.Replicas))
-	for i, rc := range DB.Replicas {
-		rc.Mu.Lock()
-		n, err := rc.Conn.Write(getAckCommand)
-		rc.Mu.Unlock()
-		if err != nil {
-			fmt.Printf("WAIT: Failed to send GETACK to replica %d: %v\n", i, err)
-			_ = rc.Conn.Close()
-			continue
-		}
-		fmt.Printf("WAIT: Sent %d bytes GETACK to replica %d\n", n, i)
-		live = append(live, rc)
+	// Channel to signal completion of sending to a replica
+	doneCh := make(chan *db.ReplicaConn, len(initialReplicas))
+	var wg sync.WaitGroup
+
+	// Send GETACK to each replica concurrently
+	fmt.Printf("WAIT: Sending GETACK to %d replicas (concurrently)\n", len(initialReplicas))
+	for _, rc := range initialReplicas {
+		wg.Add(1)
+		go func(replicaConn *db.ReplicaConn) {
+			defer wg.Done()
+			replicaConn.Mu.Lock()
+			_, err := replicaConn.Conn.Write(getAckCommand)
+			replicaConn.Mu.Unlock()
+			if err != nil {
+				fmt.Printf("WAIT: Failed to send GETACK to replica %v: %v\n", replicaConn.Conn.RemoteAddr(), err)
+				doneCh <- nil
+				return
+			}
+			fmt.Printf("WAIT: Successfully sent GETACK to replica %v\n", replicaConn.Conn.RemoteAddr())
+			doneCh <- replicaConn
+		}(rc)
 	}
-	DB.Replicas = live
+
+	go func() {
+		wg.Wait()
+		close(doneCh)
+	}()
+
+	liveReplicas := []*db.ReplicaConn{}
+	for rc := range doneCh {
+		if rc != nil {
+			liveReplicas = append(liveReplicas, rc)
+		}
+	}
+
+	DB.ReplicaMu.Lock()
+	DB.Replicas = liveReplicas
+	finalNumReplicas := int64(len(DB.Replicas))
 	DB.ReplicaMu.Unlock()
 
-	DB.ReplicaMu.RLock()
-	replicasToWaitFor := len(DB.Replicas)
-	DB.ReplicaMu.RUnlock()
-	if replicasToWaitFor == 0 {
+	fmt.Printf("WAIT: After sending GETACK, live replicas: %d\n", finalNumReplicas)
+
+	if requiredAcks >= finalNumReplicas {
+		return fmt.Sprintf(":%d\r\n", finalNumReplicas), nil, nil
+	}
+	if finalNumReplicas == 0 {
 		return ":0\r\n", nil, nil
 	}
 
@@ -378,7 +400,7 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
-	fmt.Printf("WAIT: Starting wait loop for %d acks, timeout %v\n", requiredAcks, timeout)
+	fmt.Printf("WAIT: Starting wait loop for %d acks (max possible: %d), timeout %v\n", requiredAcks, finalNumReplicas, timeout)
 
 	for {
 		select {
@@ -386,7 +408,7 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 			currentAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
 			fmt.Printf("WAIT: Ticker check - Acks received: %d / %d\n", currentAcks, requiredAcks)
 			if currentAcks >= requiredAcks {
-				fmt.Printf("WAIT: Condition met: %d >= %d\n", currentAcks, requiredAcks)
+				fmt.Printf("WAIT: Condition met (required): %d >= %d\n", currentAcks, requiredAcks)
 				return fmt.Sprintf(":%d\r\n", currentAcks), nil, nil
 			}
 		case <-timeoutChannel:
