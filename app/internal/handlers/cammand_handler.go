@@ -342,13 +342,10 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 	}
 
-	if !DB.WriteCommand {
-		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
-	}
-	
 	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
 
 	getAckCommand := []byte(utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"}))
+	fmt.Println(string(getAckCommand))
 
 	// Send GETACK to each replica, locking per-connection so writes don't interleave.
 	DB.ReplicaMu.Lock()

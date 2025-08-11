@@ -26,7 +26,6 @@ type DB struct {
 	Replicas        []*ReplicaConn
 	ReplicaMu       sync.RWMutex
 	NumAcksRecieved int64
-	WriteCommand    bool
 }
 
 type StreamEntry struct {
@@ -53,7 +52,6 @@ func New(role string) *DB {
 		Offset:          0,
 		Replicas:        make([]*ReplicaConn, 0),
 		NumAcksRecieved: 0,
-		WriteCommand:    false,
 	}
 }
 
