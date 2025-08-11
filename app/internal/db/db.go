@@ -19,7 +19,7 @@ type ReplicaConn struct {
 type DB struct {
 	Data            map[string]cacheValue
 	Streams         map[string][]StreamEntry
-	mu              sync.RWMutex
+	Mu              sync.RWMutex
 	Role            string
 	ID              string
 	Offset          int
@@ -102,8 +102,8 @@ func (db *DB) PropagateCommand(args []string) {
 }
 
 func (db *DB) GetLastID(key string) string {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	db.Mu.RLock()
+	defer db.Mu.RUnlock()
 
 	if stream, ok := db.Streams[key]; ok && len(stream) > 0 {
 		return stream[len(stream)-1].ID
@@ -112,8 +112,8 @@ func (db *DB) GetLastID(key string) string {
 }
 
 func (db *DB) Get(key string) (string, bool) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	db.Mu.RLock()
+	defer db.Mu.RUnlock()
 
 	val, ok := db.Data[key]
 	if !ok {
@@ -129,8 +129,8 @@ func (db *DB) Get(key string) (string, bool) {
 }
 
 func (db *DB) GetType(key string) string {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
+	db.Mu.RLock()
+	defer db.Mu.RUnlock()
 
 	if _, ok := db.Data[key]; ok {
 		return "string"
@@ -141,8 +141,8 @@ func (db *DB) GetType(key string) string {
 	return "none"
 }
 func (db *DB) Set(key, Value string, ttlMilSec int64) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 
 	var Ttl int64
 	if ttlMilSec > 0 {
@@ -152,8 +152,8 @@ func (db *DB) Set(key, Value string, ttlMilSec int64) {
 }
 
 func (db *DB) XAdd(key, ID string, fields map[string]string) (string, error) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 
 	if _, ok := db.Data[key]; ok {
 		return "", fmt.Errorf("wrong key type")
@@ -224,8 +224,8 @@ func (db *DB) XREAD(key, ID string) []StreamEntry {
 }
 
 func (db *DB) INCR(key string) int64 {
-	db.mu.Lock()
-	defer db.mu.Unlock()
+	db.Mu.Lock()
+	defer db.Mu.Unlock()
 
 	val, ok := db.Data[key]
 	if !ok {

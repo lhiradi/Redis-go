@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -392,6 +393,7 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 
 func handleConfig(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
+		activeTx.AddCommand("CONFIG", args[1:])
 		return "+QUEUED\r\n", activeTx, nil
 	}
 
@@ -414,4 +416,31 @@ func handleConfig(args []string, DB *db.DB, activeTx *transaction.Transaction) (
 		return "", nil, fmt.Errorf(" wrong arguments for 'CONFIG' command")
 	}
 	return "", nil, fmt.Errorf(" wrong arguments for 'CONFIG' command")
+}
+
+func handleKeys(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	if activeTx != nil {
+		activeTx.AddCommand("KEYS", args[1:])
+	}
+
+	if len(args) < 2 {
+		return "", nil, fmt.Errorf(" wrong number of arguments for 'KEYS' command")
+	}
+
+	pattern := args[1]
+	DB.Mu.RLock()
+	defer DB.Mu.RUnlock()
+
+	var matchingKeys []string
+	for key := range DB.Data {
+		match, err := filepath.Match(pattern, key)
+		if err != nil {
+			return "", nil, err
+		}
+		if match {
+			matchingKeys = append(matchingKeys, key)
+		}
+	}
+	response := utils.FormatRESPArray(matchingKeys)
+	return response, nil, nil
 }
