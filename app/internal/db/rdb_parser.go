@@ -83,10 +83,10 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			if err != nil {
 				return nil, fmt.Errorf("error reading key: %w", err)
 			}
-			value, err := readString(reader)
-			if err != nil {
-				return nil, fmt.Errorf("error reading value: %w", err)
-			}
+			value, err := "readString(reader)", nil
+			// if err != nil {
+			// 	return nil, fmt.Errorf("error reading value: %w", err)
+			// }
 			data[key] = cacheValue{Value: value, Ttl: ttl}
 			ttl = 0 // Reset TTL after use
 		case 0xFF: // End of RDB
