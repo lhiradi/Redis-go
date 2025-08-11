@@ -91,8 +91,6 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			ttl = 0 // Reset TTL after use
 		case 0xFF: // End of RDB
 			return data, nil
-		default:
-			return nil, fmt.Errorf("unsupported opcode: 0x%x", opcode)
 		}
 	}
 
