@@ -102,7 +102,8 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 		if inSubscribeMode {
 			switch command {
 			case "SUBSCRIBE", "UNSUBSCRIBE", "PSUBSCRIBE", "PUNSUBSCRIBE", "PING", "QUIT", "RESET":
-				// These commands are allowed, proceed with handling.
+				response := "*2\r\n$4\r\npong\r\n$0\r\n\r\n"
+				conn.Write([]byte(response))
 			default:
 				errorMsg := fmt.Sprintf("-ERR Can't execute '%s': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT / RESET are allowed in this context\r\n", strings.ToLower(args[0]))
 				conn.Write([]byte(errorMsg))
