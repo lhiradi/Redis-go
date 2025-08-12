@@ -453,6 +453,6 @@ func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction
 	if len(args) < 2 {
 		return "", nil, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command")
 	}
-
-	return utils.FormatRESPArray([]string{"subscribe", args[1], "1"}), nil, nil
+	response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$3\r\n%s\r\n:1\r\n", args[1])
+	return response, nil, nil
 }
