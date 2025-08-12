@@ -556,3 +556,4 @@ func handleLLen(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	response := fmt.Sprintf(":%d\r\n", len(DB.List[key]))
 	return response, nil, nil
 }
+// 
