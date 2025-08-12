@@ -58,6 +58,13 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			if _, err := readLength(reader); err != nil {
 				return nil, err
 			}
+		case 0xFA: // AUX field
+			if _, err := readLengthPrefixedString(reader); err != nil {
+				return nil, fmt.Errorf("error reading AUX key: %w", err)
+			}
+			if _, err := readLengthPrefixedString(reader); err != nil {
+				return nil, fmt.Errorf("error reading AUX value: %w", err)
+			}
 		case 0xFF: // End
 			return data, nil
 		default:
