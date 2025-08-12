@@ -85,6 +85,7 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 	reader := bufio.NewReader(conn)
 	var activeTx *transaction.Transaction
 	var inSubscribeMode bool
+	clientSubscriptions := make(map[string]chan string)
 
 	for {
 		args := utils.ParseArgs(reader)
@@ -155,22 +156,26 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 			}
 			fmt.Printf("Replica count after PSYNC: %d\n", len(DB.Replicas))
 		} else if command == "SUBSCRIBE" {
-			subChannel, subscribersCount, newTx, err := handleSubscribe(args, DB, activeTx)
-			activeTx = newTx
-			if err != nil {
-				writeError(conn, err)
+			if len(args) < 2 {
+				writeError(conn, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command"))
 				continue
 			}
-			inSubscribeMode = true
-			response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(args[1]), args[1], subscribersCount)
-			conn.Write([]byte(response))
+			channel := args[1]
+			if _, ok := clientSubscriptions[channel]; !ok {
+				subChannel, _ := DB.PubSub.Subscribe(channel)
+				clientSubscriptions[channel] = subChannel
+				inSubscribeMode = true
 
-			go func() {
-				for msg := range subChannel {
-					resp := fmt.Sprintf("*3\r\n$7\r\nmessage\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n", len(args[1]), args[1], len(msg), msg)
-					conn.Write([]byte(resp))
-				}
-			}()
+				go func() {
+					for msg := range subChannel {
+						resp := fmt.Sprintf("*3\r\n$7\r\nmessage\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n", len(channel), channel, len(msg), msg)
+						conn.Write([]byte(resp))
+					}
+				}()
+			}
+			subscribersCount := len(clientSubscriptions)
+			response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(channel), channel, subscribersCount)
+			conn.Write([]byte(response))
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))

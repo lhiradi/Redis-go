@@ -445,19 +445,19 @@ func handleKeys(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	return response, nil, nil
 }
 
-func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction) (chan string, int, *transaction.Transaction, error) {
-	if activeTx != nil {
-		activeTx.AddCommand("SUBSCRIBE", args[1:])
-		return nil, 0, activeTx, nil
-	}
-	if len(args) < 2 {
-		return nil, 0, nil, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command")
-	}
-	channel := args[1]
+// func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction) (chan string, int, *transaction.Transaction, error) {
+// 	if activeTx != nil {
+// 		activeTx.AddCommand("SUBSCRIBE", args[1:])
+// 		return nil, 0, activeTx, nil
+// 	}
+// 	if len(args) < 2 {
+// 		return nil, 0, nil, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command")
+// 	}
+// 	channel := args[1]
 
-	subChannel, subscribersCount := DB.PubSub.Subscribe(channel)
-	return subChannel, subscribersCount, nil, nil
-}
+// 	subChannel, subscribersCount := DB.PubSub.Subscribe(channel)
+// 	return subChannel, subscribersCount, nil, nil
+// }
 
 func handlePublish(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
