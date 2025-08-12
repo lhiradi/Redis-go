@@ -519,10 +519,6 @@ func handleLRange(args []string, DB *db.DB, activeTx *transaction.Transaction) (
 		for i := start; i <= end; i++ {
 			elements = append(elements, list[i])
 		}
-	} else { 
-		for i := start; i >= end; i-- {
-			elements = append(elements, list[i])
-		}
 	}
 
 	response := utils.FormatRESPArray(elements)
