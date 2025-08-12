@@ -38,3 +38,19 @@ func (p *PubSub) Publish(channel string, message string) int {
 
 	return len(subscribers)
 }
+
+func (p *PubSub) Unsubscribe(channel string, subChannel chan string){
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	subscribers, ok := p.subscribers[channel]
+	if !ok{
+		return
+	} 
+	for i, ch := range subscribers{
+		if ch == subChannel{
+			close(ch)
+			p.subscribers[channel] = append(subscribers[:i], subscribers[i+1:]... )
+		}
+	}
+}
