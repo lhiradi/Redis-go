@@ -18,11 +18,11 @@ type DB struct {
 	Store       *Store
 	Replication *Replication
 	PubSub      *exchange.PubSub
-	List        map[string][]string
 	mu          sync.Mutex
 	Role        string
 	RDBFileDir  string
 	RDBFileName string
+	List        *ListStore
 }
 
 func New(role string) *DB {
@@ -31,62 +31,10 @@ func New(role string) *DB {
 		Replication: &Replication{ID: utils.GenerateReplicaID(), Offset: 0, Replicas: make([]*ReplicaConn, 0), NumAcksRecieved: 0},
 		PubSub:      exchange.NewPubSub(),
 		Role:        role,
-		List:        make(map[string][]string),
+		List:        NewListStore(),
 	}
 }
 
-func (db *DB) LPop(key string, count int) []string {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	list, ok := db.List[key]
-	if !ok || len(list) == 0 {
-		return nil
-	}
-
-	if count <= 0 {
-		return []string{}
-	}
-
-	if count >= len(list) {
-		removedElements := list
-		delete(db.List, key)
-		return removedElements
-	}
-
-	removedElements := list[:count]
-	db.List[key] = list[count:]
-	return removedElements
-}
-
-func (db *DB) LPush(key string, elements []string) int {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	oldList := db.List[key]
-
-	newList := make([]string, len(elements)+len(oldList))
-	for i := range elements {
-		newList[i] = elements[len(elements)-1-i]
-	}
-	copy(newList[len(elements):], oldList)
-
-	db.List[key] = newList
-	return len(newList)
-}
-
-func (db *DB) RPush(key string, elements []string) int {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	if _, ok := db.List[key]; !ok {
-		db.List[key] = make([]string, 0)
-	}
-
-	db.List[key] = append(db.List[key], elements...)
-	return len(db.List[key])
-
-}
 
 func (db *DB) ParseAndLoadRDBFile() error {
 	_, err := os.Stat(filepath.Join(db.RDBFileDir, db.RDBFileName))

@@ -461,6 +461,49 @@ func handlePublish(args []string, DB *db.DB, activeTx *transaction.Transaction) 
 	return fmt.Sprintf(":%d\r\n", subscribersCount), nil, nil
 }
 
+func handleBlpop(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	if activeTx != nil {
+		return "", activeTx, fmt.Errorf("BLPOP is not supported inside a transaction")
+	}
+	if len(args) < 3 {
+		return "", nil, fmt.Errorf("wrong number of arguments for 'BLPOP' command")
+	}
+
+	key := args[1]
+	timeout, err := strconv.ParseInt(args[2], 10, 64)
+	if err != nil || timeout < 0 {
+		return "", nil, fmt.Errorf("timeout is not an integer or is out of range")
+	}
+
+	// Check if a value is immediately available
+	poppedElements := DB.List.LPop(key, 1)
+	if poppedElements != nil {
+		response := utils.FormatRESPArray([]string{key, poppedElements[0]})
+		return response, nil, nil
+	}
+
+	// If not, block and wait
+	clientChan := make(chan string)
+	DB.List.AddBlockingClient(key, clientChan)
+
+	if timeout == 0 {
+		<-clientChan
+		poppedElements = DB.List.LPop(key, 1)
+		response := utils.FormatRESPArray([]string{key, poppedElements[0]})
+		return response, nil, nil
+	} else {
+		select {
+		case <-clientChan:
+			poppedElements = DB.List.LPop(key, 1)
+			response := utils.FormatRESPArray([]string{key, poppedElements[0]})
+			return response, nil, nil
+		case <-time.After(time.Duration(timeout) * time.Second):
+			DB.List.RemoveBlockingClient(key, clientChan)
+			return "$-1\r\n", nil, nil
+		}
+	}
+}
+
 func handleRPush(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("RPUSH", args[1:])
@@ -472,10 +515,11 @@ func handleRPush(args []string, DB *db.DB, activeTx *transaction.Transaction) (s
 
 	key := args[1]
 	elements := args[2:]
-	length := DB.RPush(key, elements)
+	length := DB.List.RPush(key, elements)
 	response := fmt.Sprintf(":%d\r\n", length)
 	return response, nil, nil
 }
+
 func handleLPush(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("LPUSH", args[1:])
@@ -487,7 +531,7 @@ func handleLPush(args []string, DB *db.DB, activeTx *transaction.Transaction) (s
 
 	key := args[1]
 	elements := args[2:]
-	length := DB.LPush(key, elements)
+	length := DB.List.LPush(key, elements)
 	response := fmt.Sprintf(":%d\r\n", length)
 	return response, nil, nil
 }
@@ -502,7 +546,9 @@ func handleLRange(args []string, DB *db.DB, activeTx *transaction.Transaction) (
 	}
 
 	key := args[1]
-	list := DB.List[key]
+	DB.List.Mu.Lock()
+	list := DB.List.List[key]
+	DB.List.Mu.Unlock()
 	listLength := len(list)
 
 	start, err := strconv.Atoi(args[2])
@@ -549,11 +595,13 @@ func handleLLen(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "", nil, fmt.Errorf("wrong number of arguments for 'LLEN' command")
 	}
 	key := args[1]
-	if _, ok := DB.List[key]; !ok {
+	DB.List.Mu.Lock()
+	defer DB.List.Mu.Unlock()
+	if _, ok := DB.List.List[key]; !ok {
 		return ":0\r\n", nil, nil
 	}
 
-	response := fmt.Sprintf(":%d\r\n", len(DB.List[key]))
+	response := fmt.Sprintf(":%d\r\n", len(DB.List.List[key]))
 	return response, nil, nil
 }
 
@@ -576,7 +624,10 @@ func handleLPop(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		}
 	}
 
-	poppedElements := DB.LPop(key, count)
+	poppedElements := DB.List.LPop(key, count)
+	if poppedElements == nil {
+		return "$-1\r\n", nil, nil
+	}
 	if len(poppedElements) == 1 {
 		response := fmt.Sprintf("$%d\r\n%s\r\n", len(poppedElements[0]), poppedElements[0])
 		return response, nil, nil
