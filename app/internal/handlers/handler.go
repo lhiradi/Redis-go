@@ -84,7 +84,7 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 	defer DB.RemoveReplica(conn)
 	reader := bufio.NewReader(conn)
 	var activeTx *transaction.Transaction
-
+	var inSubscribeMode bool
 	for {
 		args := utils.ParseArgs(reader)
 		if args == nil {
@@ -97,6 +97,16 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 
 		command := strings.ToUpper(args[0])
 
+		if inSubscribeMode {
+			switch command {
+			case "SUBSCRIBE", "UNSUBSCRIBE", "PSUBSCRIBE", "PUNSUBSCRIBE", "PING", "QUIT", "RESET":
+				// These commands are allowed, proceed with handling.
+			default:
+				errorMsg := fmt.Sprintf("-ERR Can't execute '%s': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT / RESET are allowed in this context\r\n", strings.ToLower(args[0]))
+				conn.Write([]byte(errorMsg))
+				continue
+			}
+		}
 		if command == "EXEC" {
 			response, newTx, err := handleExec(args, DB, activeTx, commandHandlers)
 			activeTx = newTx
@@ -146,6 +156,7 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 				writeError(conn, err)
 				continue
 			}
+			inSubscribeMode = true
 
 			response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:1\r\n", len(args[1]), args[1])
 			conn.Write([]byte(response))
