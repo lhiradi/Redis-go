@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-func ParseRDBFile(dir, filename string) (map[string]string, error) {
+func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 	filePath := filepath.Join(dir, filename)
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -31,7 +31,7 @@ func ParseRDBFile(dir, filename string) (map[string]string, error) {
 		return nil, fmt.Errorf("error reading RDB version: %w", err)
 	}
 
-	data := make(map[string]string)
+	data := make(map[string]cacheValue)
 
 	for {
 		opcode, err := reader.ReadByte()
@@ -52,7 +52,7 @@ func ParseRDBFile(dir, filename string) (map[string]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			data[key] = value
+			data[key] = cacheValue{Value: value, Ttl: 0}
 
 		case 0xFE: // SELECT DB — skip
 			if _, err := readLength(reader); err != nil {
