@@ -446,7 +446,7 @@ func handleKeys(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	return response, nil, nil
 }
 
-func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction, subscribedChannels *[]string) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("SUBSCRIBE", args[1:])
 		return "+QUEUED\r\n", activeTx, nil
@@ -454,12 +454,12 @@ func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction
 	if len(args) < 2 {
 		return "", nil, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command")
 	}
-	chanel := args[1]
-	if !slices.Contains(DB.Channels, chanel) {
-		DB.Channels = append(DB.Channels, chanel)
-		response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(args[1]), args[1], len(DB.Channels))
-		return response, nil, nil
+	channel := args[1]
+
+	if !slices.Contains(*subscribedChannels, channel) {
+		*subscribedChannels = append(*subscribedChannels, channel)
 	}
-	response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(args[1]), args[1], len(DB.Channels[:slices.Index(DB.Channels, chanel)]))
+
+	response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(args[1]), args[1], len(*subscribedChannels))
 	return response, nil, nil
 }

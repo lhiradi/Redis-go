@@ -16,21 +16,20 @@ type CmdHandler func(args []string, DB *db.DB, activeTx *transaction.Transaction
 
 // Map command strings to handler functions, updated for the new signature.
 var commandHandlers = map[string]CmdHandler{
-	"PING":      handlePing,
-	"ECHO":      handleEcho,
-	"SET":       handleSet,
-	"GET":       handleGet,
-	"TYPE":      handleType,
-	"XADD":      handleXAdd,
-	"XRANGE":    handleXRange,
-	"INCR":      handleINCR,
-	"MULTI":     handleMulti,
-	"INFO":      handleInfo,
-	"REPLCONF":  handleReplconf,
-	"WAIT":      handleWait,
-	"CONFIG":    handleConfig,
-	"KEYS":      handleKeys,
-	"SUBSCRIBE": handleSubscribe,
+	"PING":     handlePing,
+	"ECHO":     handleEcho,
+	"SET":      handleSet,
+	"GET":      handleGet,
+	"TYPE":     handleType,
+	"XADD":     handleXAdd,
+	"XRANGE":   handleXRange,
+	"INCR":     handleINCR,
+	"MULTI":    handleMulti,
+	"INFO":     handleInfo,
+	"REPLCONF": handleReplconf,
+	"WAIT":     handleWait,
+	"CONFIG":   handleConfig,
+	"KEYS":     handleKeys,
 }
 
 func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
@@ -84,6 +83,7 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 	defer DB.RemoveReplica(conn)
 	reader := bufio.NewReader(conn)
 	var activeTx *transaction.Transaction
+	var subscribedChannels []string
 
 	for {
 		args := utils.ParseArgs(reader)
@@ -139,6 +139,14 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 				writeError(conn, err)
 			}
 			fmt.Printf("Replica count after PSYNC: %d\n", len(DB.Replicas))
+		} else if command == "SUBSCRIBE" {
+			response, newTx, err := handleSubscribe(args, DB, activeTx, &subscribedChannels)
+			activeTx = newTx
+			if err != nil {
+				writeError(conn, err)
+				continue
+			}
+			conn.Write([]byte(response))
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))

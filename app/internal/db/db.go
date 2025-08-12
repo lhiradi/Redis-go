@@ -30,7 +30,6 @@ type DB struct {
 	NumAcksRecieved int64
 	RDBFileDir      string
 	RDBFileName     string
-	Channels        []string
 }
 
 type StreamEntry struct {
@@ -57,7 +56,6 @@ func New(role string) *DB {
 		Offset:          0,
 		Replicas:        make([]*ReplicaConn, 0),
 		NumAcksRecieved: 0,
-		Channels:        make([]string, 0),
 	}
 }
 
