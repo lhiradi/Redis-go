@@ -470,7 +470,7 @@ func handleBlpop(args []string, DB *db.DB, activeTx *transaction.Transaction) (s
 	}
 
 	key := args[1]
-	timeout, err := strconv.ParseInt(args[2], 10, 64)
+	timeout, err := strconv.ParseFloat(args[2], 64)
 	if err != nil || timeout < 0 {
 		return "", nil, fmt.Errorf("timeout is not an integer or is out of range")
 	}
