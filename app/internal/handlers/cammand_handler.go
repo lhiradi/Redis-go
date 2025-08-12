@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -446,20 +445,32 @@ func handleKeys(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	return response, nil, nil
 }
 
-func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction, subscribedChannels *[]string) (string, *transaction.Transaction, error) {
+func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction) (chan string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("SUBSCRIBE", args[1:])
-		return "+QUEUED\r\n", activeTx, nil
+		return nil, activeTx, nil
 	}
 	if len(args) < 2 {
-		return "", nil, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command")
+		return nil, nil, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command")
 	}
 	channel := args[1]
 
-	if !slices.Contains(*subscribedChannels, channel) {
-		*subscribedChannels = append(*subscribedChannels, channel)
+	subChannel := DB.PubSub.Subscribe(channel)
+	return subChannel, nil, nil
+}
+
+func handlePublish(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	if activeTx != nil {
+		activeTx.AddCommand("PUBLISH", args[1:])
+		return "+QUEUED\r\n", activeTx, nil
 	}
 
-	response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(args[1]), args[1], len(*subscribedChannels))
-	return response, nil, nil
+	if len(args) < 3 {
+		return "", nil, fmt.Errorf("wrong number of arguments for 'PUBLISH' command")
+	}
+	channel := args[1]
+	message := args[2]
+
+	subscribersCount := DB.PubSub.Publish(channel, message)
+	return fmt.Sprintf(":%d\r\n", subscribersCount), nil, nil
 }

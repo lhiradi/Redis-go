@@ -30,6 +30,7 @@ var commandHandlers = map[string]CmdHandler{
 	"WAIT":     handleWait,
 	"CONFIG":   handleConfig,
 	"KEYS":     handleKeys,
+	"PUBLISH":  handlePublish,
 }
 
 func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {
@@ -83,7 +84,6 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 	defer DB.RemoveReplica(conn)
 	reader := bufio.NewReader(conn)
 	var activeTx *transaction.Transaction
-	var subscribedChannels []string
 
 	for {
 		args := utils.ParseArgs(reader)
@@ -140,13 +140,22 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 			}
 			fmt.Printf("Replica count after PSYNC: %d\n", len(DB.Replicas))
 		} else if command == "SUBSCRIBE" {
-			response, newTx, err := handleSubscribe(args, DB, activeTx, &subscribedChannels)
+			subChannel, newTx, err := handleSubscribe(args, DB, activeTx)
 			activeTx = newTx
 			if err != nil {
 				writeError(conn, err)
 				continue
 			}
+
+			response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:1\r\n", len(args[1]), args[1])
 			conn.Write([]byte(response))
+
+			go func() {
+				for msg := range subChannel {
+					resp := fmt.Sprintf("*3\r\n$7\r\nmessage\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n", len(args[1]), args[1], len(msg), msg)
+					conn.Write([]byte(resp))
+				}
+			}()
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
