@@ -497,7 +497,7 @@ func handleBlpop(args []string, DB *db.DB, activeTx *transaction.Transaction) (s
 			poppedElements = DB.List.LPop(key, 1)
 			response := utils.FormatRESPArray([]string{key, poppedElements[0]})
 			return response, nil, nil
-		case <-time.After(time.Duration(timeout) * time.Second):
+		case <-time.After(time.Duration(timeout*1000) * time.Millisecond):
 			DB.List.RemoveBlockingClient(key, clientChan)
 			return "$-1\r\n", nil, nil
 		}
