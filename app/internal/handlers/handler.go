@@ -85,7 +85,6 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 	reader := bufio.NewReader(conn)
 	var activeTx *transaction.Transaction
 	var inSubscribeMode bool
-	subscriptions := make(map[string]bool)
 
 	for {
 		args := utils.ParseArgs(reader)
@@ -156,16 +155,14 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 			}
 			fmt.Printf("Replica count after PSYNC: %d\n", len(DB.Replicas))
 		} else if command == "SUBSCRIBE" {
-			subChannel, newTx, err := handleSubscribe(args, DB, activeTx)
+			subChannel, subscribersCount, newTx, err := handleSubscribe(args, DB, activeTx)
 			activeTx = newTx
 			if err != nil {
 				writeError(conn, err)
 				continue
 			}
 			inSubscribeMode = true
-			channel := args[1]
-			subscriptions[channel] = true
-			response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(args[1]), args[1], len(subscriptions))
+			response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(args[1]), args[1], subscribersCount)
 			conn.Write([]byte(response))
 
 			go func() {

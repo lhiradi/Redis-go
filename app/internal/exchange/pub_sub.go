@@ -4,35 +4,37 @@ import "sync"
 
 type PubSub struct {
 	mu          sync.RWMutex
-	subscribers map[string]chan string
+	subscribers map[string][]chan string
 }
 
 func NewPubSub() *PubSub {
 	return &PubSub{
-		subscribers: make(map[string]chan string),
+		subscribers: make(map[string][]chan string),
 	}
 }
 
-func (p *PubSub) Subscribe(channel string) chan string {
+func (p *PubSub) Subscribe(channel string) (chan string, int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if _, ok := p.subscribers[channel]; !ok {
-		p.subscribers[channel] = make(chan string)
-	}
+	subChannel := make(chan string)
+	p.subscribers[channel] = append(p.subscribers[channel], subChannel)
 
-	return p.subscribers[channel]
+	return subChannel, len(p.subscribers[channel])
 }
 
 func (p *PubSub) Publish(channel string, message string) int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	if _, ok := p.subscribers[channel]; ok {
-		p.subscribers[channel] <- message
-		return len(p.subscribers[channel])
+	subscribers, ok := p.subscribers[channel]
+	if !ok {
+		return 0
 	}
 
-	return 0
+	for _, subChannel := range subscribers {
+		subChannel <- message
+	}
+
+	return len(subscribers)
 }
-// 
