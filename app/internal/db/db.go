@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/app/internal/exchange"
@@ -18,6 +19,7 @@ type DB struct {
 	Replication *Replication
 	PubSub      *exchange.PubSub
 	List        map[string][]string
+	mu          sync.Mutex
 	Role        string
 	RDBFileDir  string
 	RDBFileName string
@@ -34,6 +36,9 @@ func New(role string) *DB {
 }
 
 func (db *DB) RPush(key string, elements []string) int {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	if _, ok := db.List[key]; !ok {
 		db.List[key] = make([]string, 0)
 	}

@@ -476,3 +476,32 @@ func handleRPush(args []string, DB *db.DB, activeTx *transaction.Transaction) (s
 	response := fmt.Sprintf(":%d\r\n", length)
 	return response, nil, nil
 }
+
+func handleLRange(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	if activeTx != nil {
+		activeTx.AddCommand("LRANGE", args[1:])
+		return "+QUEUED\r\n", activeTx, nil
+	}
+	if len(args) < 4 {
+		return "", nil, fmt.Errorf("wrong number of arguments for 'LRange' command")
+	}
+
+	key := args[1]
+	start, err := strconv.Atoi(args[2])
+	if err != nil {
+		return "", nil, fmt.Errorf("wrong range format")
+	}
+	end, err := strconv.Atoi((args[3]))
+	if err != nil {
+		return "", nil, fmt.Errorf("wrong range format")
+	}
+
+	var elements []string
+
+	for i := start; i <= end; i++ {
+		elements = append(elements, DB.List[key][i])
+	}
+
+	response := utils.FormatRESPArray(elements)
+	return response, nil, nil
+}
