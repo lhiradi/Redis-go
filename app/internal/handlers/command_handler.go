@@ -487,7 +487,10 @@ func handleLRange(args []string, DB *db.DB, activeTx *transaction.Transaction) (
 	}
 
 	key := args[1]
+	list := DB.List[key]
+
 	start, err := strconv.Atoi(args[2])
+
 	if err != nil {
 		return "", nil, fmt.Errorf("wrong range format")
 	}
@@ -495,14 +498,25 @@ func handleLRange(args []string, DB *db.DB, activeTx *transaction.Transaction) (
 	if err != nil {
 		return "", nil, fmt.Errorf("wrong range format")
 	}
-
-	if end > len(DB.List[key])-1 {
-		end = len(DB.List[key]) - 1
+	if start > len(list) {
+		return "", nil, fmt.Errorf("wrong range format")
+	} else if end < start {
+		return "", nil, fmt.Errorf("wrong range format")
 	}
+	if end > len(list)-1 {
+		end = len(list) - 1
+	}
+	if start < 0 {
+		start = max(len(list)+start, 0)
+	}
+	if end < 0 {
+		end = max(len(list)+end, 0)
+	}
+
 	var elements []string
 
 	for i := start; i <= end; i++ {
-		elements = append(elements, DB.List[key][i])
+		elements = append(elements, list[i])
 	}
 
 	response := utils.FormatRESPArray(elements)
