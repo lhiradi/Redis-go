@@ -66,7 +66,7 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			if _, err := readString(reader); err != nil {
 				return nil, fmt.Errorf("error reading AUX value: %w", err)
 			}
-		case 0xFB:
+		case 0xFB: // skip hash table-size info
 			if _, err := readLength(reader); err != nil {
 				return nil, err
 			}
