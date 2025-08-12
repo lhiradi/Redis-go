@@ -85,6 +85,8 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 	reader := bufio.NewReader(conn)
 	var activeTx *transaction.Transaction
 	var inSubscribeMode bool
+	subscriptions := make(map[string]bool)
+
 	for {
 		args := utils.ParseArgs(reader)
 		if args == nil {
@@ -157,8 +159,9 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 				continue
 			}
 			inSubscribeMode = true
-
-			response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:1\r\n", len(args[1]), args[1])
+			channel := args[1]
+			subscriptions[channel] = true
+			response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(args[1]), args[1], len(subscriptions))
 			conn.Write([]byte(response))
 
 			go func() {
