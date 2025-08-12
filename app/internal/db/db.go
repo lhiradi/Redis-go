@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -58,6 +60,14 @@ func New(role string) *DB {
 }
 
 func (db *DB) ParseAndLoadRDBFile() error {
+	_, err := os.Stat(filepath.Join(db.RDBFileDir, db.RDBFileName))
+	if os.IsNotExist(err) {
+		fmt.Println("RDB file not found, starting with empty database.")
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("error checking RDB file status: %w", err)
+	}
+
 	data, err := ParseRDBFile(db.RDBFileDir, db.RDBFileName)
 	if err != nil {
 		return fmt.Errorf("failed to parse RDB file: %w", err)
