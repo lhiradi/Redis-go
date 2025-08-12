@@ -7,18 +7,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
-func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
+func ParseRDBFile(dir, filename string) (map[string]string, error) {
 	filePath := filepath.Join(dir, filename)
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		fmt.Printf("RDB file not found at %s. Starting with empty DB.\n", filePath)
-		return make(map[string]cacheValue), nil
-	} else if err != nil {
-		return nil, fmt.Errorf("error checking RDB file: %w", err)
-	}
-
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error opening RDB file: %w", err)
@@ -27,75 +19,65 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 
 	reader := bufio.NewReader(f)
 
-	// Verify magic string.
+	// Magic string
 	magic := make([]byte, 5)
 	if _, err := io.ReadFull(reader, magic); err != nil || string(magic) != "REDIS" {
-		return nil, fmt.Errorf("invalid RDB magic number")
+		return nil, fmt.Errorf("invalid RDB file")
 	}
 
-	// Verify version (4 ASCII digits).
+	// Version (ignore for now)
 	version := make([]byte, 4)
 	if _, err := io.ReadFull(reader, version); err != nil {
-		return nil, fmt.Errorf("invalid RDB version")
+		return nil, fmt.Errorf("error reading RDB version: %w", err)
 	}
-	_ = version // version is currently unused.
 
-	data := make(map[string]cacheValue)
-	var ttl int64 // TTL for the next key (in ms), reset after each key.
+	data := make(map[string]string)
 
 	for {
 		opcode, err := reader.ReadByte()
 		if err == io.EOF {
-			break // Normal termination.
+			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("error reading opcode: %w", err)
+			return nil, err
 		}
 
 		switch opcode {
-		case 0xFE: // SELECT DB (ignored for now)
+		case 0x00: // String value
+			key, err := readLengthPrefixedString(reader)
+			if err != nil {
+				return nil, err
+			}
+			value, err := readLengthPrefixedString(reader)
+			if err != nil {
+				return nil, err
+			}
+			data[key] = value
+
+		case 0xFE: // SELECT DB — skip
 			if _, err := readLength(reader); err != nil {
-				return nil, fmt.Errorf("error reading DB selector: %w", err)
+				return nil, err
 			}
-		case 0xFA: // AUX key/value (ignored)
-			if _, err := readString(reader); err != nil {
-				return nil, fmt.Errorf("error reading AUX key: %w", err)
-			}
-			if _, err := readString(reader); err != nil {
-				return nil, fmt.Errorf("error reading AUX value: %w", err)
-			}
-		case 0xFD: // Expiry in seconds (convert to ms).
-			var buf [4]byte
-			if _, err := io.ReadFull(reader, buf[:]); err != nil {
-				return nil, fmt.Errorf("error reading expiry seconds: %w", err)
-			}
-			ttl = int64(binary.BigEndian.Uint32(buf[:])) * 1000
-		case 0xFC: // Expiry in milliseconds.
-			var buf [8]byte
-			if _, err := io.ReadFull(reader, buf[:]); err != nil {
-				return nil, fmt.Errorf("error reading expiry ms: %w", err)
-			}
-			ttl = int64(binary.BigEndian.Uint64(buf[:]))
-		case 0x00: // String value.
-			value, err := readString(reader)
-			if err != nil {
-				return nil, fmt.Errorf("error reading value for key %s: %w", value, err)
-			}
-
-			key, err := readString(reader)
-			if err != nil {
-				return nil, fmt.Errorf("error reading key: %w", err)
-			}
-
-			data[key] = cacheValue{Value: value, Ttl: ttl}
-			ttl = 0 // Reset for the next key.
-		case 0xFF: // End of RDB.
+		case 0xFF: // End
 			return data, nil
+		default:
+			return nil, fmt.Errorf("unsupported opcode: 0x%x", opcode)
 		}
 	}
-	return data, fmt.Errorf("unexpected EOF while parsing RDB")
+	return data, nil
 }
 
+func readLengthPrefixedString(r *bufio.Reader) (string, error) {
+	length, err := readLength(r)
+	if err != nil {
+		return "", err
+	}
+	buf := make([]byte, length)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return "", err
+	}
+	return string(buf), nil
+}
 
 func readLength(r *bufio.Reader) (int, error) {
 	first, err := r.ReadByte()
@@ -103,77 +85,21 @@ func readLength(r *bufio.Reader) (int, error) {
 		return 0, err
 	}
 	switch (first & 0xC0) >> 6 {
-	case 0: // 6‑bit length
+	case 0: // 6-bit length
 		return int(first & 0x3F), nil
-	case 1: // 14‑bit length
+	case 1: // 14-bit length
 		second, err := r.ReadByte()
 		if err != nil {
 			return 0, err
 		}
 		return ((int(first) & 0x3F) << 8) | int(second), nil
-	case 2: // 32‑bit length
+	case 2: // 32-bit length
 		var buf [4]byte
 		if _, err := io.ReadFull(r, buf[:]); err != nil {
 			return 0, err
 		}
-		return int(binary.LittleEndian.Uint32(buf[:])), nil
-	case 3: // special encoding (e.g. integer)
-		return int(first & 0x3F), nil
+		return int(binary.BigEndian.Uint32(buf[:])), nil
 	default:
 		return 0, fmt.Errorf("invalid length encoding")
 	}
-}
-
-
-func readString(r *bufio.Reader) (string, error) {
-	// Peek the first byte to decide whether this is a special encoding.
-	first, err := r.ReadByte()
-	if err != nil {
-		return "", err
-	}
-	encodingType := (first & 0xC0) >> 6
-
-	if encodingType == 3 { // Special integer encoding.
-		switch first & 0x3F {
-		case 0: // 8‑bit signed integer
-			b, err := r.ReadByte()
-			if err != nil {
-				return "", err
-			}
-			return strconv.Itoa(int(int8(b))), nil
-		case 1: // 16‑bit signed integer (little‑endian)
-			var buf [2]byte
-			if _, err := io.ReadFull(r, buf[:]); err != nil {
-				return "", err
-			}
-			val := int16(binary.LittleEndian.Uint16(buf[:]))
-			return strconv.Itoa(int(val)), nil
-		case 2: // 32‑bit signed integer (little‑endian)
-			var buf [4]byte
-			if _, err := io.ReadFull(r, buf[:]); err != nil {
-				return "", err
-			}
-			val := int32(binary.LittleEndian.Uint32(buf[:]))
-			return strconv.Itoa(int(val)), nil
-		default:
-			return "", fmt.Errorf("unsupported special encoding")
-		}
-	}
-
-	// Not a special encoding: put the byte back and read the length
-	if err := r.UnreadByte(); err != nil {
-		return "", err
-	}
-	length, err := readLength(r)
-	if err != nil {
-		return "", fmt.Errorf("error reading bulk string length: %w", err)
-	}
-	if length < 0 {
-		return "", fmt.Errorf("negative string length %d", length)
-	}
-	buf := make([]byte, length)
-	if _, err := io.ReadFull(r, buf); err != nil {
-		return "", fmt.Errorf("error reading bulk string: %w", err)
-	}
-	return string(buf), nil
 }
