@@ -496,6 +496,9 @@ func handleLRange(args []string, DB *db.DB, activeTx *transaction.Transaction) (
 		return "", nil, fmt.Errorf("wrong range format")
 	}
 
+	if end > len(DB.List[key])-1 {
+		end = len(DB.List[key]) - 1
+	}
 	var elements []string
 
 	for i := start; i <= end; i++ {
