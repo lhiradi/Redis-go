@@ -16,20 +16,21 @@ type CmdHandler func(args []string, DB *db.DB, activeTx *transaction.Transaction
 
 // Map command strings to handler functions, updated for the new signature.
 var commandHandlers = map[string]CmdHandler{
-	"PING":     handlePing,
-	"ECHO":     handleEcho,
-	"SET":      handleSet,
-	"GET":      handleGet,
-	"TYPE":     handleType,
-	"XADD":     handleXAdd,
-	"XRANGE":   handleXRange,
-	"INCR":     handleINCR,
-	"MULTI":    handleMulti,
-	"INFO":     handleInfo,
-	"REPLCONF": handleReplconf,
-	"WAIT":     handleWait,
-	"CONFIG":   handleConfig,
-	"KEYS":     handleKeys,
+	"PING":      handlePing,
+	"ECHO":      handleEcho,
+	"SET":       handleSet,
+	"GET":       handleGet,
+	"TYPE":      handleType,
+	"XADD":      handleXAdd,
+	"XRANGE":    handleXRange,
+	"INCR":      handleINCR,
+	"MULTI":     handleMulti,
+	"INFO":      handleInfo,
+	"REPLCONF":  handleReplconf,
+	"WAIT":      handleWait,
+	"CONFIG":    handleConfig,
+	"KEYS":      handleKeys,
+	"SUBSCRIBE": handleSubscribe,
 }
 
 func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {

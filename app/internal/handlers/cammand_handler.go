@@ -444,3 +444,15 @@ func handleKeys(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	response := utils.FormatRESPArray(matchingKeys)
 	return response, nil, nil
 }
+
+func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	if activeTx != nil {
+		activeTx.AddCommand("SUBSCRIBE", args[1:])
+		return "+QUEUED\r\n", activeTx, nil
+	}
+	if len(args) < 2 {
+		return "", nil, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command")
+	}
+
+	return utils.FormatRESPArray([]string{"subscribe", args[1], "1"}), nil, nil
+}
