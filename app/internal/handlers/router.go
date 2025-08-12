@@ -35,6 +35,7 @@ var commandHandlers = map[string]CmdHandler{
 	"LPUSH":    handleLPush,
 	"LRANGE":   handleLRange,
 	"LLEN":     handleLLen,
+	"LPOP":     handleLPop,
 }
 
 func handleXReadWrapper(conn net.Conn, args []string, DB *db.DB, activeTx *transaction.Transaction) (*transaction.Transaction, error) {

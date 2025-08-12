@@ -35,6 +35,30 @@ func New(role string) *DB {
 	}
 }
 
+func (db *DB) LPop(key string, count int) []string {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	list, ok := db.List[key]
+	if !ok || len(list) == 0 {
+		return nil
+	}
+
+	if count <= 0 {
+		return []string{}
+	}
+
+	if count >= len(list) {
+		removedElements := list
+		delete(db.List, key)
+		return removedElements
+	}
+
+	removedElements := list[:count]
+	db.List[key] = list[count:]
+	return removedElements
+}
+
 func (db *DB) LPush(key string, elements []string) int {
 	db.mu.Lock()
 	defer db.mu.Unlock()

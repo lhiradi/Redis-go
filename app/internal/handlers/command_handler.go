@@ -556,4 +556,31 @@ func handleLLen(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	response := fmt.Sprintf(":%d\r\n", len(DB.List[key]))
 	return response, nil, nil
 }
-// 
+
+func handleLPop(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	if activeTx != nil {
+		activeTx.AddCommand("LPOP", args[1:])
+		return "+QUEUED\r\n", activeTx, nil
+	}
+	if len(args) < 2 {
+		return "", nil, fmt.Errorf("wrong number of arguments for 'LPOP' command")
+	}
+
+	key := args[1]
+	count := 1
+	if len(args) > 2 {
+		var err error
+		count, err = strconv.Atoi(args[2])
+		if err != nil || count < 0 {
+			return "", nil, fmt.Errorf("value is not an integer or is out of range")
+		}
+	}
+
+	poppedElements := DB.LPop(key, count)
+	if len(poppedElements) == 1 {
+		response := fmt.Sprintf("$%d\r\n%s\r\n", len(poppedElements[0]), poppedElements[0])
+		return response, nil, nil
+	}
+	response := utils.FormatRESPArray(poppedElements)
+	return response, nil, nil
+}
