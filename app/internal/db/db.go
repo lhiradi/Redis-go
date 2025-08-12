@@ -43,7 +43,10 @@ func (db *DB) LPush(key string, elements []string) int {
 		db.List[key] = make([]string, 0)
 	}
 
-	db.List[key] = append(elements, db.List[key]...)
+	for i := len(elements) - 1; i >= 0; i-- {
+		db.List[key] = append([]string{elements[i]}, db.List[key]...)
+	}
+
 	return len(db.List[key])
 }
 
