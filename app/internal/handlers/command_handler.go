@@ -445,8 +445,6 @@ func handleKeys(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	return response, nil, nil
 }
 
-
-
 func handlePublish(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
 		activeTx.AddCommand("PUBLISH", args[1:])
@@ -461,4 +459,20 @@ func handlePublish(args []string, DB *db.DB, activeTx *transaction.Transaction) 
 
 	subscribersCount := DB.PubSub.Publish(channel, message)
 	return fmt.Sprintf(":%d\r\n", subscribersCount), nil, nil
+}
+
+func handleRPush(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	if activeTx != nil {
+		activeTx.AddCommand("RPUSH", args[1:])
+		return "+QUEUED\r\n", activeTx, nil
+	}
+	if len(args) < 3 {
+		return "", nil, fmt.Errorf("wrong number of arguments for 'RPush' command")
+	}
+
+	key := args[1]
+	elements := args[2:]
+	length := DB.RPush(key, elements)
+	response := fmt.Sprintf(":%d\r\n", length)
+	return response, nil, nil
 }

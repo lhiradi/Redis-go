@@ -17,6 +17,7 @@ type DB struct {
 	Store       *Store
 	Replication *Replication
 	PubSub      *exchange.PubSub
+	List        map[string][]string
 	Role        string
 	RDBFileDir  string
 	RDBFileName string
@@ -28,7 +29,18 @@ func New(role string) *DB {
 		Replication: &Replication{ID: utils.GenerateReplicaID(), Offset: 0, Replicas: make([]*ReplicaConn, 0), NumAcksRecieved: 0},
 		PubSub:      exchange.NewPubSub(),
 		Role:        role,
+		List:        make(map[string][]string),
 	}
+}
+
+func (db *DB) RPush(key string, elements []string) int {
+	if _, ok := db.List[key]; !ok {
+		db.List[key] = make([]string, 0)
+	}
+
+	db.List[key] = append(db.List[key], elements...)
+	return len(db.List[key])
+
 }
 
 func (db *DB) ParseAndLoadRDBFile() error {
