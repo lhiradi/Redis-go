@@ -32,6 +32,7 @@ var commandHandlers = map[string]CmdHandler{
 	"KEYS":     handleKeys,
 	"PUBLISH":  handlePublish,
 	"RPUSH":    handleRPush,
+	"LPUSH":    handleLPush,
 	"LRANGE":   handleLRange,
 }
 

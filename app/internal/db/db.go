@@ -35,6 +35,18 @@ func New(role string) *DB {
 	}
 }
 
+func (db *DB) LPush(key string, elements []string) int {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	if _, ok := db.List[key]; !ok {
+		db.List[key] = make([]string, 0)
+	}
+
+	db.List[key] = append(elements, db.List[key]...)
+	return len(db.List[key])
+}
+
 func (db *DB) RPush(key string, elements []string) int {
 	db.mu.Lock()
 	defer db.mu.Unlock()

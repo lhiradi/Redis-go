@@ -476,6 +476,21 @@ func handleRPush(args []string, DB *db.DB, activeTx *transaction.Transaction) (s
 	response := fmt.Sprintf(":%d\r\n", length)
 	return response, nil, nil
 }
+func handleLPush(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	if activeTx != nil {
+		activeTx.AddCommand("LPUSH", args[1:])
+		return "+QUEUED\r\n", activeTx, nil
+	}
+	if len(args) < 3 {
+		return "", nil, fmt.Errorf("wrong number of arguments for 'LPush' command")
+	}
+
+	key := args[1]
+	elements := args[2:]
+	length := DB.RPush(key, elements)
+	response := fmt.Sprintf(":%d\r\n", length)
+	return response, nil, nil
+}
 
 func handleLRange(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {
