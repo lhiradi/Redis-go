@@ -101,26 +101,8 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 
 		if inSubscribeMode {
 			switch command {
-			case "SUBSCRIBE", "PSUBSCRIBE", "PUNSUBSCRIBE", "QUIT", "RESET":
+			case "SUBSCRIBE", "UNSUBSCRIBE", "PSUBSCRIBE", "PUNSUBSCRIBE", "QUIT", "RESET":
 				//
-			case "UNSUBSCRIBE":
-				if len(args) < 2 {
-					writeError(conn, fmt.Errorf(" wrong number of arguments for 'UNSUBSCRIBE' command"))
-					continue
-				}
-				channel := args[1]
-				subChannel, ok := clientSubscriptions[channel]
-				if ok {
-					DB.PubSub.Unsubscribe(channel, subChannel)
-					delete(clientSubscriptions, channel)
-				}
-				subscribersCount := len(clientSubscriptions)
-				response := fmt.Sprintf("*3\r\n$11\r\nunsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(channel), channel, subscribersCount)
-				conn.Write([]byte(response))
-
-				if subscribersCount == 0 {
-					inSubscribeMode = false
-				}
 			case "PING":
 				response := "*2\r\n$4\r\npong\r\n$0\r\n\r\n"
 				conn.Write([]byte(response))
@@ -194,6 +176,24 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 			subscribersCount := len(clientSubscriptions)
 			response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(channel), channel, subscribersCount)
 			conn.Write([]byte(response))
+		} else if command == "UNSUBSCRIBE" {
+			if len(args) < 2 {
+				writeError(conn, fmt.Errorf(" wrong number of arguments for 'UNSUBSCRIBE' command"))
+				continue
+			}
+			channel := args[1]
+			subChannel, ok := clientSubscriptions[channel]
+			if ok {
+				DB.PubSub.Unsubscribe(channel, subChannel)
+				delete(clientSubscriptions, channel)
+			}
+			subscribersCount := len(clientSubscriptions)
+			response := fmt.Sprintf("*3\r\n$11\r\nunsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(channel), channel, subscribersCount)
+			conn.Write([]byte(response))
+
+			if subscribersCount == 0 {
+				inSubscribeMode = false
+			}
 		} else {
 			errorMsg := fmt.Sprintf("-ERR unknown command '%s'\r\n", args[0])
 			conn.Write([]byte(errorMsg))
