@@ -101,7 +101,9 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 
 		if inSubscribeMode {
 			switch command {
-			case "SUBSCRIBE", "UNSUBSCRIBE", "PSUBSCRIBE", "PUNSUBSCRIBE", "PING", "QUIT", "RESET":
+			case "SUBSCRIBE", "UNSUBSCRIBE", "PSUBSCRIBE", "PUNSUBSCRIBE", "QUIT", "RESET":
+				//
+			case "PING":
 				response := "*2\r\n$4\r\npong\r\n$0\r\n\r\n"
 				conn.Write([]byte(response))
 				continue
