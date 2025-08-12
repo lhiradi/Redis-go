@@ -539,3 +539,20 @@ func handleLRange(args []string, DB *db.DB, activeTx *transaction.Transaction) (
 	response := utils.FormatRESPArray(elements)
 	return response, nil, nil
 }
+
+func handleLLen(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
+	if activeTx != nil {
+		activeTx.AddCommand("LLEN", args[1:])
+		return "+QUEUED\r\n", activeTx, nil
+	}
+	if len(args) < 2 {
+		return "", nil, fmt.Errorf("wrong number of arguments for 'LLEN' command")
+	}
+	key := args[1]
+	if _, ok := DB.List[key]; !ok {
+		return "", nil, fmt.Errorf(" Key does not exits")
+	}
+
+	response := fmt.Sprintf(":%d\r\n", len(DB.List[key]))
+	return response, nil, nil
+}

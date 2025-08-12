@@ -35,7 +35,6 @@ func New(role string) *DB {
 	}
 }
 
-// TODO: fix lpush
 func (db *DB) LPush(key string, elements []string) int {
 	db.mu.Lock()
 	defer db.mu.Unlock()
