@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -453,6 +454,11 @@ func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction
 	if len(args) < 2 {
 		return "", nil, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command")
 	}
-	response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:1\r\n", len(args[1]), args[1])
+	chanel := args[1]
+	if !slices.Contains(DB.Channels, chanel) {
+		DB.Channels = append(DB.Channels, chanel)
+	}
+
+	response := fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d\r\n", len(args[1]), args[1], len(DB.Channels))
 	return response, nil, nil
 }
