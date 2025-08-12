@@ -31,14 +31,14 @@ func handleReplconf(args []string, DB *db.DB, activeTx *transaction.Transaction)
 		if len(args) < 3 || args[2] != "*" {
 			return "-ERR REPLCONF GETACK requires '*' as the second argument\r\n", nil, nil
 		}
-		response := utils.FormatRESPArray([]string{"REPLCONF", "ACK", strconv.Itoa(DB.Offset)})
+		response := utils.FormatRESPArray([]string{"REPLCONF", "ACK", strconv.Itoa(DB.Replication.Offset)})
 		return response, nil, nil
 
 	case "ACK":
 		if len(args) < 3 {
 			return "-ERR REPLCONF ACK requires an offset argument\r\n", nil, nil
 		}
-		atomic.AddInt64(&DB.NumAcksRecieved, 1)
+		atomic.AddInt64(&DB.Replication.NumAcksRecieved, 1)
 		return "", nil, nil
 	}
 

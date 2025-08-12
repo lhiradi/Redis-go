@@ -266,7 +266,7 @@ func handleMulti(args []string, DB *db.DB, activeTx *transaction.Transaction) (s
 	return "+OK\r\n", transaction.NewTransaction(), nil
 }
 
-func handleExec(args []string, DB *db.DB, activeTx *transaction.Transaction, commandHandlers map[string]CmdHandler) (string, *transaction.Transaction, error) {
+func handleExec(DB *db.DB, activeTx *transaction.Transaction, commandHandlers map[string]CmdHandler) (string, *transaction.Transaction, error) {
 	if activeTx == nil {
 		return "", nil, fmt.Errorf(" EXEC without MULTI")
 	}
@@ -307,8 +307,8 @@ func handleInfo(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	var infoBuilder strings.Builder
 
 	infoBuilder.WriteString(fmt.Sprintf("role:%s\r\n", DB.Role))
-	infoBuilder.WriteString(fmt.Sprintf("master_replid:%s\r\n", DB.ID))
-	infoBuilder.WriteString(fmt.Sprintf("master_repl_offset:%d\r\n", DB.Offset))
+	infoBuilder.WriteString(fmt.Sprintf("master_replid:%s\r\n", DB.Replication.ID))
+	infoBuilder.WriteString(fmt.Sprintf("master_repl_offset:%d\r\n", DB.Replication.Offset))
 
 	infoString := infoBuilder.String()
 
@@ -333,20 +333,20 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 		return "", nil, fmt.Errorf("error parsing timeout: %w", err)
 	}
 
-	DB.ReplicaMu.RLock()
-	numReplicas := int64(len(DB.Replicas))
-	replicasToSignal := make([]*db.ReplicaConn, len(DB.Replicas))
-	copy(replicasToSignal, DB.Replicas)
-	DB.ReplicaMu.RUnlock()
+	DB.Replication.ReplicaMu.RLock()
+	numReplicas := int64(len(DB.Replication.Replicas))
+	replicasToSignal := make([]*db.ReplicaConn, len(DB.Replication.Replicas))
+	copy(replicasToSignal, DB.Replication.Replicas)
+	DB.Replication.ReplicaMu.RUnlock()
 
-	fmt.Printf("WAIT: Current replication offset: %d\n", DB.Offset)
+	fmt.Printf("WAIT: Current replication offset: %d\n", DB.Replication.Offset)
 	fmt.Printf("WAIT: Found %d replicas to signal.\n", numReplicas)
 
-	if requiredAcks <= 0 || DB.Offset == 0 || numReplicas == 0 {
+	if requiredAcks <= 0 || DB.Replication.Offset == 0 || numReplicas == 0 {
 		return fmt.Sprintf(":%d\r\n", numReplicas), nil, nil
 	}
 
-	atomic.StoreInt64(&DB.NumAcksRecieved, 0)
+	atomic.StoreInt64(&DB.Replication.NumAcksRecieved, 0)
 
 	getAckCommand := []byte(utils.FormatRESPArray([]string{"REPLCONF", "GETACK", "*"}))
 	fmt.Printf("WAIT: Preparing to send GETACK command: %s", string(getAckCommand))
@@ -377,14 +377,14 @@ func handleWait(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	for {
 		select {
 		case <-ticker.C:
-			currentAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
+			currentAcks := atomic.LoadInt64(&DB.Replication.NumAcksRecieved)
 			fmt.Printf("WAIT: Ticker check - Acks received: %d / %d\n", currentAcks, requiredAcks)
 			if currentAcks >= requiredAcks {
 				fmt.Printf("WAIT: Condition met (required): %d >= %d\n", currentAcks, requiredAcks)
 				return fmt.Sprintf(":%d\r\n", currentAcks), nil, nil
 			}
 		case <-timeoutChannel:
-			finalAcks := atomic.LoadInt64(&DB.NumAcksRecieved)
+			finalAcks := atomic.LoadInt64(&DB.Replication.NumAcksRecieved)
 			fmt.Printf("WAIT: Timeout reached. Acks received: %d\n", finalAcks)
 			return fmt.Sprintf(":%d\r\n", finalAcks), nil, nil
 		}
@@ -428,11 +428,11 @@ func handleKeys(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	}
 
 	pattern := args[1]
-	DB.Mu.RLock()
-	defer DB.Mu.RUnlock()
+	DB.Store.Mu.RLock()
+	defer DB.Store.Mu.RUnlock()
 
 	var matchingKeys []string
-	for key := range DB.Data {
+	for key := range DB.Store.Data {
 		match, err := filepath.Match(pattern, key)
 		if err != nil {
 			return "", nil, err
@@ -445,19 +445,7 @@ func handleKeys(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	return response, nil, nil
 }
 
-// func handleSubscribe(args []string, DB *db.DB, activeTx *transaction.Transaction) (chan string, int, *transaction.Transaction, error) {
-// 	if activeTx != nil {
-// 		activeTx.AddCommand("SUBSCRIBE", args[1:])
-// 		return nil, 0, activeTx, nil
-// 	}
-// 	if len(args) < 2 {
-// 		return nil, 0, nil, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command")
-// 	}
-// 	channel := args[1]
 
-// 	subChannel, subscribersCount := DB.PubSub.Subscribe(channel)
-// 	return subChannel, subscribersCount, nil, nil
-// }
 
 func handlePublish(args []string, DB *db.DB, activeTx *transaction.Transaction) (string, *transaction.Transaction, error) {
 	if activeTx != nil {

@@ -25,11 +25,11 @@ func Start(port, replicaof, dir, dbFileName string) {
 	if replicaof != "" {
 		role = "slave"
 	}
-	db := db.New(role)
-	db.RDBFileDir = dir
-	db.RDBFileName = dbFileName
+	database := db.New(role)
+	database.RDBFileDir = dir
+	database.RDBFileName = dbFileName
 
-	if err := db.ParseAndLoadRDBFile(); err != nil {
+	if err := database.ParseAndLoadRDBFile(); err != nil {
 		fmt.Println("Failed to load RDB file:", err)
 		os.Exit(1)
 	}
@@ -56,7 +56,7 @@ func Start(port, replicaof, dir, dbFileName string) {
 			os.Exit(1)
 		}
 		// Pass the same reader to the connection handler.
-		go handlers.HandleMasterConnection(conn, db, reader)
+		go handlers.HandleMasterConnection(conn, database, reader)
 	}
 	for {
 		conn, err := l.Accept()
@@ -64,6 +64,6 @@ func Start(port, replicaof, dir, dbFileName string) {
 			fmt.Println("Error accepting connection:", err.Error())
 			continue
 		}
-		go handlers.HandleConnection(conn, db)
+		go handlers.HandleConnection(conn, database)
 	}
 }

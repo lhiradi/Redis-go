@@ -114,7 +114,7 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 			}
 		}
 		if command == "EXEC" {
-			response, newTx, err := handleExec(args, DB, activeTx, commandHandlers)
+			response, newTx, err := handleExec(DB, activeTx, commandHandlers)
 			activeTx = newTx
 			if err != nil {
 				writeError(conn, err)
@@ -151,10 +151,10 @@ func HandleConnection(conn net.Conn, DB *db.DB) {
 			}
 			conn.Write([]byte(response))
 		} else if command == "PSYNC" {
-			if err := handlePsync(conn, args, DB); err != nil {
+			if err := handlePsync(conn, DB); err != nil {
 				writeError(conn, err)
 			}
-			fmt.Printf("Replica count after PSYNC: %d\n", len(DB.Replicas))
+			fmt.Printf("Replica count after PSYNC: %d\n", len(DB.Replication.Replicas))
 		} else if command == "SUBSCRIBE" {
 			if len(args) < 2 {
 				writeError(conn, fmt.Errorf(" wrong number of arguments for 'SUBSCRIBE' command"))

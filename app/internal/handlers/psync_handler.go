@@ -19,8 +19,8 @@ var emptyRDB = []byte{
 	0xf0, 0x6e, 0x3b, 0xfe, 0xc0, 0xff, 0x5a, 0xa2,
 }
 
-func handlePsync(conn net.Conn, args []string, DB *db.DB) error {
-	fullResyncCmd := fmt.Sprintf("+FULLRESYNC %s %d\r\n", DB.ID, DB.Offset)
+func handlePsync(conn net.Conn, DB *db.DB) error {
+	fullResyncCmd := fmt.Sprintf("+FULLRESYNC %s %d\r\n", DB.Replication.ID, DB.Replication.Offset)
 	_, err := conn.Write([]byte(fullResyncCmd))
 	if err != nil {
 		return fmt.Errorf("failed to send FULLRESYNC response: %w", err)
