@@ -487,7 +487,7 @@ func handleLPush(args []string, DB *db.DB, activeTx *transaction.Transaction) (s
 
 	key := args[1]
 	elements := args[2:]
-	length := DB.RPush(key, elements)
+	length := DB.LPush(key, elements)
 	response := fmt.Sprintf(":%d\r\n", length)
 	return response, nil, nil
 }
