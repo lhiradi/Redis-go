@@ -550,7 +550,7 @@ func handleLLen(args []string, DB *db.DB, activeTx *transaction.Transaction) (st
 	}
 	key := args[1]
 	if _, ok := DB.List[key]; !ok {
-		return "", nil, fmt.Errorf(" Key does not exits")
+		return ":0\r\n", nil, nil
 	}
 
 	response := fmt.Sprintf(":%d\r\n", len(DB.List[key]))
