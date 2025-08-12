@@ -33,6 +33,7 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 	}
 
 	data := make(map[string]cacheValue)
+	var ttl int64 = 0
 
 	for {
 		opcode, err := reader.ReadByte()
@@ -44,6 +45,20 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 		}
 
 		switch opcode {
+		case 0xFC: // 64-bit millisecond TTL
+			var expiry int64
+			if err := binary.Read(reader, binary.LittleEndian, &expiry); err != nil {
+				return nil, fmt.Errorf("error reading 64-bit TTL: %w", err)
+			}
+			ttl = expiry
+
+		case 0xFD: // 32-bit second TTL
+			var expiry int32
+			if err := binary.Read(reader, binary.LittleEndian, &expiry); err != nil {
+				return nil, fmt.Errorf("error reading 32-bit TTL: %w", err)
+			}
+			ttl = int64(expiry) * 1000
+
 		case 0x00: // String value
 			key, err := readString(reader)
 			if err != nil {
@@ -53,7 +68,7 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 			if err != nil {
 				return nil, err
 			}
-			data[key] = cacheValue{Value: value, Ttl: 0}
+			data[key] = cacheValue{Value: value, Ttl: ttl}
 
 		case 0xFE: // SELECT DB — skip
 			if _, err := readLength(reader); err != nil {
