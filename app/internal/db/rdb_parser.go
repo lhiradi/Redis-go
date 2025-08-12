@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
@@ -44,11 +45,11 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 
 		switch opcode {
 		case 0x00: // String value
-			key, err := readLengthPrefixedString(reader)
+			key, err := readString(reader)
 			if err != nil {
 				return nil, err
 			}
-			value, err := readLengthPrefixedString(reader)
+			value, err := readString(reader)
 			if err != nil {
 				return nil, err
 			}
@@ -59,10 +60,10 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 				return nil, err
 			}
 		case 0xFA: // AUX field
-			if _, err := readLengthPrefixedString(reader); err != nil {
+			if _, err := readString(reader); err != nil {
 				return nil, fmt.Errorf("error reading AUX key: %w", err)
 			}
-			if _, err := readLengthPrefixedString(reader); err != nil {
+			if _, err := readString(reader); err != nil {
 				return nil, fmt.Errorf("error reading AUX value: %w", err)
 			}
 		case 0xFF: // End
@@ -74,11 +75,45 @@ func ParseRDBFile(dir, filename string) (map[string]cacheValue, error) {
 	return data, nil
 }
 
-func readLengthPrefixedString(r *bufio.Reader) (string, error) {
-	length, err := readLength(r)
+func readString(r *bufio.Reader) (string, error) {
+	length, isEncoded, err := readLengthAndEncoding(r)
 	if err != nil {
 		return "", err
 	}
+	if isEncoded {
+		switch length {
+		case 0, 1, 2:
+			// Integer encoded as string
+			var val int64
+			switch length {
+			case 0: // 8-bit integer
+				var buf [1]byte
+				if _, err := io.ReadFull(r, buf[:]); err != nil {
+					return "", err
+				}
+				val = int64(buf[0])
+			case 1: // 16-bit integer
+				var buf [2]byte
+				if _, err := io.ReadFull(r, buf[:]); err != nil {
+					return "", err
+				}
+				val = int64(binary.LittleEndian.Uint16(buf[:]))
+			case 2: // 32-bit integer
+				var buf [4]byte
+				if _, err := io.ReadFull(r, buf[:]); err != nil {
+					return "", err
+				}
+				val = int64(binary.LittleEndian.Uint32(buf[:]))
+			}
+			return strconv.FormatInt(val, 10), nil
+		case 3:
+			// LZF compressed string. This is not supported in this stage.
+			return "", fmt.Errorf("unsupported LZF compressed string")
+		default:
+			return "", fmt.Errorf("unsupported special encoding: %d", length)
+		}
+	}
+	// Normal length-prefixed string
 	buf := make([]byte, length)
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return "", err
@@ -86,27 +121,41 @@ func readLengthPrefixedString(r *bufio.Reader) (string, error) {
 	return string(buf), nil
 }
 
-func readLength(r *bufio.Reader) (int, error) {
+func readLengthAndEncoding(r *bufio.Reader) (int, bool, error) {
 	first, err := r.ReadByte()
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	switch (first & 0xC0) >> 6 {
 	case 0: // 6-bit length
-		return int(first & 0x3F), nil
+		return int(first & 0x3F), false, nil
 	case 1: // 14-bit length
 		second, err := r.ReadByte()
 		if err != nil {
-			return 0, err
+			return 0, false, err
 		}
-		return ((int(first) & 0x3F) << 8) | int(second), nil
+		return ((int(first) & 0x3F) << 8) | int(second), false, nil
 	case 2: // 32-bit length
 		var buf [4]byte
 		if _, err := io.ReadFull(r, buf[:]); err != nil {
-			return 0, err
+			return 0, false, err
 		}
-		return int(binary.BigEndian.Uint32(buf[:])), nil
+		return int(binary.BigEndian.Uint32(buf[:])), false, nil
+	case 3: // Special encoding
+		return int(first & 0x3F), true, nil
 	default:
-		return 0, fmt.Errorf("invalid length encoding")
+		return 0, false, fmt.Errorf("invalid length encoding")
 	}
+}
+
+// readLength is only used for opcodes that are followed by a length
+func readLength(r *bufio.Reader) (int, error) {
+	length, isEncoded, err := readLengthAndEncoding(r)
+	if err != nil {
+		return 0, err
+	}
+	if isEncoded {
+		return 0, fmt.Errorf("expected a length, but found an encoded string")
+	}
+	return length, nil
 }
